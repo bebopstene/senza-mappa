@@ -72,6 +72,20 @@ export default function Camminata({ walk }: { walk: Walk }) {
   const [wakeError, setWakeError] = useState(false)
   const [closing, setClosing] = useState(false)
   const autoBusy = useRef(false)
+  /** un'azione alla volta: tap doppi non creano punti doppi */
+  const acting = useRef(false)
+  const once = (fn: () => Promise<void>) => async () => {
+    if (acting.current) return
+    acting.current = true
+    try {
+      await fn()
+    } finally {
+      // breve pausa: il secondo tap di un doppio tap arriva dopo il salvataggio
+      setTimeout(() => {
+        acting.current = false
+      }, 700)
+    }
+  }
   const busyRef = useRef(false)
   busyRef.current = busy
   /** dopo un tap o un annulla niente checkpoint automatico per un po' */
@@ -159,7 +173,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
   }, [tryAutoCheckpoint])
 
   // --- azioni ---
-  const doCheckpoint = async () => {
+  const doCheckpoint = once(async () => {
     unlockAudio()
     lastManual.current = Date.now()
     const fix = await capture('CHECKPOINT')
@@ -168,9 +182,9 @@ export default function Camminata({ walk }: { walk: Walk }) {
     lastReminder.current = Date.now()
     showStamp('SEGNATO')
     offerUndo(p.id, 'CHECKPOINT SEGNATO')
-  }
+  })
 
-  const doBangla = async () => {
+  const doBangla = once(async () => {
     unlockAudio()
     lastManual.current = Date.now()
     const fix = await capture('BANGLA')
@@ -179,9 +193,9 @@ export default function Camminata({ walk }: { walk: Walk }) {
     lastReminder.current = Date.now()
     setUndo(null)
     setFlow({ step: 'nome', point: r.point, bangla: r.bangla, giaVisto: r.giaVisto })
-  }
+  })
 
-  const doPassante = async () => {
+  const doPassante = once(async () => {
     unlockAudio()
     lastManual.current = Date.now()
     const fix = await capture('PASSANTE')
@@ -190,7 +204,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
     lastReminder.current = Date.now()
     setUndo(null)
     setFlow({ step: 'passante', point: p })
-  }
+  })
 
   const doLost = async () => {
     const fix = await capture('MI SONO PERSO')
@@ -222,7 +236,13 @@ export default function Camminata({ walk }: { walk: Walk }) {
     } catch {
       fix = null
     }
-    await closeWalk(walk.id, fix)
+    try {
+      await closeWalk(walk.id, fix)
+    } catch {
+      setClosing(false)
+      showStamp('NON CHIUSA, RIPROVA', 2000)
+      return
+    }
     go(`rivela/${walk.id}`, true)
     void computeWalkRoute(walk.id).catch(() => {})
   }

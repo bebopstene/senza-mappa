@@ -67,12 +67,55 @@ export function encodeBundle(b: WalkBundle, opts: { nomiNegozi: boolean }): stri
   return compressToEncodedURIComponent(JSON.stringify(snap))
 }
 
+const isStr = (x: unknown): x is string => typeof x === 'string' && x.length <= 200
+const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
+const isIdx = (x: unknown, len: number) => Number.isInteger(x) && (x as number) >= 0 && (x as number) < len
+const isLat = (x: unknown) => isNum(x) && Math.abs(x) <= 90
+const isLng = (x: unknown) => isNum(x) && Math.abs(x) <= 180
+const TIPI_PUNTO = ['partenza', 'checkpoint', 'checkpoint-auto', 'passante', 'perso', 'bangla', 'arrivo']
+const CATEGORIE = ['preferito', 'fresca', 'varieta', 'gentili', 'location']
+const MAX_DATE = 8.64e15
+
+/** il link può essere stato manomesso: controlliamo ogni campo prima di disegnarlo */
+function validSnapshot(s: Snapshot): boolean {
+  if (!s || typeof s !== 'object' || s.v !== 1) return false
+  if (!isStr(s.n) || !isNum(s.s) || Math.abs(s.s) > MAX_DATE) return false
+  if (s.e !== null && (!isNum(s.e) || Math.abs(s.e) > MAX_DATE)) return false
+  if (s.om !== null && !isNum(s.om)) return false
+  if (s.pm !== null && !isNum(s.pm)) return false
+  if (!Array.isArray(s.pa) || s.pa.length > 50 || !s.pa.every(isStr)) return false
+  if (!Array.isArray(s.b) || !s.b.every((x) => Array.isArray(x) && isStr(x[0]) && isLat(x[1]) && isLng(x[2]))) return false
+  const nb = s.b.length
+  const np = s.pa.length
+  if (!Array.isArray(s.nb) || !s.nb.every((i) => isIdx(i, nb))) return false
+  if (
+    !Array.isArray(s.p) ||
+    s.p.length > 2000 ||
+    !s.p.every(
+      (x) =>
+        Array.isArray(x) &&
+        TIPI_PUNTO.includes(x[0]) &&
+        isLat(x[1]) &&
+        isLng(x[2]) &&
+        isNum(x[3]) &&
+        isNum(x[4]) &&
+        (x[5] === null || isIdx(x[5], nb)) &&
+        (x[6] === null || isIdx(x[6], np)),
+    )
+  )
+    return false
+  if (!Array.isArray(s.d) || !s.d.every((x) => Array.isArray(x) && isIdx(x[0], np) && isIdx(x[1], nb) && isNum(x[2]))) return false
+  if (!Array.isArray(s.r) || !s.r.every((x) => Array.isArray(x) && isIdx(x[0], nb) && isNum(x[1]))) return false
+  if (!Array.isArray(s.a) || !s.a.every((x) => Array.isArray(x) && CATEGORIE.includes(x[0]) && isIdx(x[1], nb))) return false
+  return true
+}
+
 export function decodeBundle(data: string): WalkBundle | null {
   try {
     const json = decompressFromEncodedURIComponent(data)
     if (!json) return null
     const s = JSON.parse(json) as Snapshot
-    if (s.v !== 1) return null
+    if (!validSnapshot(s)) return null
     const walkId = 'condivisa'
     const t = s.e ?? s.s
     const walk: Walk = {

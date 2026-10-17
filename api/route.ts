@@ -5,6 +5,13 @@
 type LngLat = [number, number]
 
 const MAX_WAYPOINTS = 50
+// una camminata urbana: nessun tratto oltre 8 km, nessun percorso oltre 40 km in tutto
+const MAX_SEGMENT_M = 8_000
+const MAX_TOTAL_M = 40_000
+// limite grezzo per istanza: basta a non fare da proxy gratuito al router pubblico
+const RATE_WINDOW_MS = 60_000
+const RATE_MAX = 30
+const hits = new Map<string, number[]>()
 const UPSTREAM_TIMEOUT_MS = 15_000
 
 function json(body: unknown, status = 200): Response {
@@ -26,6 +33,53 @@ function validCoords(input: unknown): LngLat[] | null {
     out.push([lng, lat])
   }
   return out
+}
+
+function haversine(a: LngLat, b: LngLat): number {
+  const R = 6_371_000
+  const toRad = (d: number) => (d * Math.PI) / 180
+  const dLat = toRad(b[1] - a[1])
+  const dLng = toRad(b[0] - a[0])
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * Math.sin(dLng / 2) ** 2
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)))
+}
+
+function tooFar(coords: LngLat[]): boolean {
+  let total = 0
+  for (let i = 1; i < coords.length; i++) {
+    const d = haversine(coords[i - 1], coords[i])
+    if (d > MAX_SEGMENT_M) return true
+    total += d
+  }
+  return total > MAX_TOTAL_M
+}
+
+function allowedOrigin(request: Request): boolean {
+  const origin = request.headers.get('origin')
+  if (!origin) return true // stessa origine: alcuni browser non mandano Origin sulle POST same-origin
+  try {
+    const host = new URL(origin).hostname
+    const self = new URL(request.url).hostname
+    return (
+      host === self ||
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === 'senza-mappa.vercel.app' ||
+      /^senza-mappa-[a-z0-9-]+\.vercel\.app$/.test(host)
+    )
+  } catch {
+    return false
+  }
+}
+
+function rateLimited(request: Request): boolean {
+  const ip = (request.headers.get('x-forwarded-for') ?? 'anon').split(',')[0].trim()
+  const now = Date.now()
+  const recent = (hits.get(ip) ?? []).filter((t) => now - t < RATE_WINDOW_MS)
+  recent.push(now)
+  hits.set(ip, recent)
+  if (hits.size > 5000) hits.clear()
+  return recent.length > RATE_MAX
 }
 
 async function withTimeout(url: string, init: RequestInit = {}): Promise<globalThis.Response> {
@@ -68,6 +122,9 @@ async function viaOsrm(coords: LngLat[]) {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  if (!allowedOrigin(request)) return json({ error: 'origine non ammessa' }, 403)
+  if (!(request.headers.get('content-type') ?? '').includes('application/json')) return json({ error: 'serve application/json' }, 415)
+  if (rateLimited(request)) return json({ error: 'troppe richieste, riprova tra un minuto' }, 429)
   let body: unknown
   try {
     body = await request.json()
@@ -76,6 +133,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   const coords = validCoords((body as { coordinates?: unknown })?.coordinates)
   if (!coords) return json({ error: `servono da 2 a ${MAX_WAYPOINTS} coordinate [lng, lat]` }, 400)
+  if (tooFar(coords)) return json({ error: 'troppo lontano per una camminata' }, 422)
 
   const key = process.env.ORS_API_KEY
   const errors: string[] = []
@@ -91,7 +149,8 @@ export async function POST(request: Request): Promise<Response> {
   } catch (e) {
     errors.push(String(e instanceof Error ? e.message : e))
   }
-  return json({ error: 'router non disponibile', details: errors }, 502)
+  console.warn('routing fallito', errors)
+  return json({ error: 'router non disponibile' }, 502)
 }
 
 export function GET(): Response {

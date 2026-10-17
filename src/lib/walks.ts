@@ -236,7 +236,18 @@ export async function closeWalk(walkId: string, fix: Fix | null): Promise<void> 
 }
 
 /** calcola percorso e percorso ottimale; se offline la camminata resta "da calcolare" */
-export async function computeWalkRoute(walkId: string): Promise<'ok' | 'offline'> {
+const inFlight = new Map<string, Promise<'ok' | 'offline'>>()
+
+/** una sola richiesta per camminata alla volta, anche se la chiedono in tre */
+export function computeWalkRoute(walkId: string): Promise<'ok' | 'offline'> {
+  const running = inFlight.get(walkId)
+  if (running) return running
+  const p = doComputeWalkRoute(walkId).finally(() => inFlight.delete(walkId))
+  inFlight.set(walkId, p)
+  return p
+}
+
+async function doComputeWalkRoute(walkId: string): Promise<'ok' | 'offline'> {
   const pts = sortedPoints(await db.points.where({ walkId }).toArray())
   const coords: LngLat[] = pts.map((p) => [p.lng, p.lat])
   try {

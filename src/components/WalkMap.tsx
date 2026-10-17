@@ -104,7 +104,8 @@ function markerEl(m: MapMarker, editable: boolean): HTMLElement {
   el.setAttribute('role', 'img')
   el.setAttribute('aria-label', m.title ?? m.kind)
   el.style.cursor = editable ? 'grab' : 'default'
-  const base = 'font-family:"Archivo Black",sans-serif;display:flex;align-items:center;justify-content:center;border:3px solid #111;'
+  // solo apici singoli: la stringa finisce dentro style="…"
+  const base = "font-family:'Archivo Black',sans-serif;display:flex;align-items:center;justify-content:center;border:3px solid #111;"
   switch (m.kind) {
     case 'bangla':
       el.innerHTML = `<div style="position:relative;width:40px;height:40px;${base}background:#D6D3CB;box-shadow:3px 3px 0 #111">${MUG_SVG}<span style="position:absolute;top:-12px;right:-12px;background:#111;color:#F2B230;min-width:22px;height:22px;font-size:13px;display:flex;align-items:center;justify-content:center;padding:0 3px">${m.label}</span></div>`
@@ -184,7 +185,14 @@ export function WalkMap({
           desaturate(map!)
           setReady(true)
         })
-        map.on('error', (e) => console.warn('mappa', e?.error?.message))
+        map.on('error', (e) => {
+          console.warn('mappa', e?.error?.message)
+          // stile non caricato (offline o OpenFreeMap giù): diciamolo invece di aspettare per sempre
+          if (!map?.isStyleLoaded()) setFailed(true)
+        })
+        setTimeout(() => {
+          if (!cancelled && !map?.isStyleLoaded()) setFailed(true)
+        }, 15_000)
         mapRef.current = map
       })
       .catch(() => setFailed(true))
@@ -284,7 +292,7 @@ export function WalkMap({
       <div ref={container} style={{ position: 'absolute', inset: 0 }} />
       {!ready && (
         <div className="absolute inset-0 flex items-center justify-center etichetta text-sm pointer-events-none">
-          {failed ? 'MAPPA NON DISPONIBILE OFFLINE' : 'CARICO LA MAPPA…'}
+          {failed ? (navigator.onLine ? 'MAPPA NON DISPONIBILE, RIPROVA PIÙ TARDI' : 'MAPPA NON DISPONIBILE OFFLINE') : 'CARICO LA MAPPA…'}
         </div>
       )}
     </div>

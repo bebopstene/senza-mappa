@@ -86,6 +86,15 @@ export default function Rivela({ walkId }: { walkId: string }) {
           </button>
         )}
       </div>
+    ) : walk.percorsoTipo === 'dritte' ? (
+      <div className="bordo bg-nero text-cemento p-3 mb-4" role="status">
+        <div className="etichetta text-sm">{calc === 'running' ? 'RICALCOLO…' : 'ALCUNI TRATTI SONO LINEE DRITTE: IL ROUTER NON HA RISPOSTO'}</div>
+        {calc !== 'running' && (
+          <button type="button" className="etichetta text-sm underline mt-2 min-h-[44px]" onClick={recompute} data-testid="riprova-strade">
+            RIPROVA SULLE STRADE
+          </button>
+        )}
+      </div>
     ) : null
 
   const next = () => {

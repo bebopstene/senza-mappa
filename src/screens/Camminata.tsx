@@ -71,6 +71,10 @@ export default function Camminata({ walk }: { walk: Walk }) {
   const [wake, setWake] = useState(false)
   const [closing, setClosing] = useState(false)
   const autoBusy = useRef(false)
+  const busyRef = useRef(false)
+  busyRef.current = busy
+  /** dopo un tap o un annulla niente checkpoint automatico per un po' */
+  const lastManual = useRef(0)
   const lastReminder = useRef(Date.now())
 
   const banglaCount = new Set(points.filter((p) => p.tipo === 'bangla').map((p) => p.banglaId)).size
@@ -112,11 +116,13 @@ export default function Camminata({ walk }: { walk: Walk }) {
 
   // --- checkpoint automatico alla riapertura (R27) ---
   const tryAutoCheckpoint = useCallback(async () => {
-    if (autoBusy.current || busy) return
+    if (autoBusy.current || busyRef.current) return
+    if (Date.now() - lastManual.current < 60_000) return
     autoBusy.current = true
     try {
       const fix = await getBestFix({ maxMs: 10_000, goodEnoughM: 20 })
       if (fix.accuracy > ACCURACY_LIMIT_M) return
+      if (busyRef.current || Date.now() - lastManual.current < 60_000) return
       const last = await lastPoint(walk.id)
       if (last && distanceM(last, fix) < MIN_SCORING_DISTANCE_M) return
       const fresh = await db.walks.get(walk.id)
@@ -130,14 +136,14 @@ export default function Camminata({ walk }: { walk: Walk }) {
       autoBusy.current = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walk.id, busy])
+  }, [walk.id])
 
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === 'visible') void tryAutoCheckpoint()
     }
     document.addEventListener('visibilitychange', onVis)
-    // anche alla ripresa dopo chiusura del browser
+    // anche alla ripresa dopo chiusura del browser: solo al montaggio
     const t = setTimeout(() => void tryAutoCheckpoint(), 1500)
     return () => {
       document.removeEventListener('visibilitychange', onVis)
@@ -148,6 +154,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
   // --- azioni ---
   const doCheckpoint = async () => {
     unlockAudio()
+    lastManual.current = Date.now()
     const fix = await capture('CHECKPOINT')
     if (!fix) return
     const p = await addPoint(walk.id, 'checkpoint', fix)
@@ -158,6 +165,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
 
   const doBangla = async () => {
     unlockAudio()
+    lastManual.current = Date.now()
     const fix = await capture('BANGLA')
     if (!fix) return
     const r = await checkInBangla(walk.id, fix)
@@ -168,6 +176,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
 
   const doPassante = async () => {
     unlockAudio()
+    lastManual.current = Date.now()
     const fix = await capture('PASSANTE')
     if (!fix) return
     const p = await addPoint(walk.id, 'passante', fix)
@@ -284,6 +293,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
           label={undo.label}
           onUndo={async () => {
             const id = undo.pointId
+            lastManual.current = Date.now()
             setUndo(null)
             await deletePoint(id)
             showStamp('ANNULLATO', 900)
@@ -294,6 +304,12 @@ export default function Camminata({ walk }: { walk: Walk }) {
       {flow?.step === 'nome' && (
         <NameSheet
           flow={flow}
+          onCancel={async () => {
+            lastManual.current = Date.now()
+            setFlow(null)
+            await deletePoint(flow.point.id)
+            showStamp('ANNULLATO', 900)
+          }}
           onDone={() => setFlow({ step: 'birre', point: flow.point, banglaId: flow.point.banglaId! })}
         />
       )}
@@ -318,6 +334,19 @@ export default function Camminata({ walk }: { walk: Walk }) {
       )}
       {flow?.step === 'passante' && (
         <Sheet title="CHI HA CHIESTO?" dark>
+          <button
+            type="button"
+            className="etichetta underline min-h-[44px] mb-3 mr-6 text-rosso-linea"
+            data-testid="annulla-passante"
+            onClick={async () => {
+              lastManual.current = Date.now()
+              setFlow(null)
+              await deletePoint(flow.point.id)
+              showStamp('ANNULLATO', 900)
+            }}
+          >
+            ANNULLA PASSANTE
+          </button>
           <button
             type="button"
             className="etichetta underline min-h-[44px] mb-3"
@@ -449,9 +478,11 @@ export default function Camminata({ walk }: { walk: Walk }) {
 function NameSheet({
   flow,
   onDone,
+  onCancel,
 }: {
   flow: { point: Point; bangla: Bangla; giaVisto: boolean }
   onDone: () => void
+  onCancel: () => void
 }) {
   const [shops, setShops] = useState<ShopSuggestion[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -487,6 +518,9 @@ function NameSheet({
         <Btn variant="nero" size="md" className="w-full border-cemento shadow-pieno-cemento" onClick={onDone} testId="salta">
           SALTA
         </Btn>
+        <button type="button" className="etichetta text-sm underline text-rosso-linea min-h-[44px] mt-2" onClick={onCancel} data-testid="annulla-checkin">
+          TAP SBAGLIATO? ANNULLA CHECK-IN
+        </button>
       </div>
       <div className="grid gap-3 mb-4">
         {known && (

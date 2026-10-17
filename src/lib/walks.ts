@@ -138,8 +138,24 @@ export async function nameBangla(pointId: string, nome: string, osmId: string | 
     }
     const current = await db.bangla.get(point.banglaId)
     if (!current) return
-    // un bangla riconosciuto con nome non va rinominato senza un negozio OSM diverso
-    const patch: Partial<Bangla> = { nome: nome.trim().slice(0, 60), updatedAt: t }
+    // bangla riconosciuto entro 40 m ma con nome o negozio OSM diverso: è un altro posto.
+    // Non rinominiamo quello in archivio, ne creiamo uno nuovo e ci spostiamo il punto.
+    const clean = nome.trim().slice(0, 60)
+    const altroNome = !!current.nome && clean.toLocaleUpperCase('it') !== current.nome.toLocaleUpperCase('it')
+    const altroOsm = !!osmId && !!current.osmId && osmId !== current.osmId
+    const usatoAltrove = (await db.points.where('banglaId').equals(current.id).count()) > 1
+    if (usatoAltrove && (altroNome || altroOsm)) {
+      const nuovo: Bangla = { id: uuid(), nome: clean, osmId, lat: pos?.lat ?? point.lat, lng: pos?.lng ?? point.lng, updatedAt: t }
+      await db.bangla.add(nuovo)
+      await db.points.update(pointId, { banglaId: nuovo.id, updatedAt: t })
+      const altriQui = await db.points.where({ walkId: point.walkId }).filter((x) => x.banglaId === current.id).count()
+      if (altriQui === 0) {
+        await db.drinks.where({ walkId: point.walkId, banglaId: current.id }).modify({ banglaId: nuovo.id, updatedAt: t })
+        await db.reviews.where({ walkId: point.walkId, banglaId: current.id }).modify({ banglaId: nuovo.id, updatedAt: t })
+      }
+      return
+    }
+    const patch: Partial<Bangla> = { nome: clean, updatedAt: t }
     if (osmId) patch.osmId = osmId
     if (pos && !current.nome) Object.assign(patch, { lat: pos.lat, lng: pos.lng })
     await db.bangla.update(current.id, patch)

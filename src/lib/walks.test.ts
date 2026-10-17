@@ -50,6 +50,21 @@ describe('ciclo completo', () => {
     expect(b2.newBanglaIds).toEqual([])
   })
 
+  it('un negozio diverso entro 40 m da uno già visto diventa un bangla nuovo', async () => {
+    const w = await startWalk(['A', 'B'], '', fix(45.48))
+    const a = await checkInBangla(w.id, fix(45.483))
+    await nameBangla(a.point.id, 'PRIMO', null)
+    await setVote(w.id, a.bangla.id, 5)
+    const b = await checkInBangla(w.id, fix(45.48325)) // ~28 m
+    expect(b.giaVisto).toBe(true)
+    await nameBangla(b.point.id, 'SECONDO', null)
+    const after = await db.points.get(b.point.id)
+    expect(after!.banglaId).not.toBe(a.bangla.id)
+    expect((await db.bangla.get(a.bangla.id))!.nome).toBe('PRIMO')
+    await setVote(w.id, after!.banglaId!, 1)
+    expect((await db.reviews.where({ banglaId: a.bangla.id }).first())!.voto).toBe(5)
+  })
+
   it('annullare un check-in toglie birre e voto di quel bangla', async () => {
     const w = await startWalk(['A', 'B'], '', fix(45.48))
     const { point, bangla } = await checkInBangla(w.id, fix(45.483))

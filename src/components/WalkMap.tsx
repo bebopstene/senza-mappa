@@ -222,7 +222,8 @@ export function WalkMap({
 
   return (
     <div className={`relative bordo shadow-pieno mappa-grigia bg-cemento ${className}`}>
-      <div ref={container} className="absolute inset-0" />
+      {/* stile inline: il CSS di MapLibre (.maplibregl-map { position: relative }) batte le utility Tailwind */}
+      <div ref={container} style={{ position: 'absolute', inset: 0 }} />
       {!ready && (
         <div className="absolute inset-0 flex items-center justify-center etichetta text-sm pointer-events-none">
           {failed ? 'MAPPA NON DISPONIBILE OFFLINE' : 'CARICO LA MAPPA…'}

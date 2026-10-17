@@ -106,7 +106,7 @@ export default function Squadra() {
         ))}
       </ul>
       <p className="etichetta text-xs mb-6">
-        {team.length}/{MAX_TEAM} · TOCCA UN NOME PER TOGLIERLO
+        {team.length}/{MAX_TEAM} · {team.length >= MAX_TEAM ? 'SQUADRA PIENA' : 'TOCCA UN NOME PER TOGLIERLO'}
       </p>
 
       <label className="etichetta text-sm mb-2" htmlFor="nome-giro">NOME DEL GIRO (FACOLTATIVO)</label>

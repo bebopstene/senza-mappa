@@ -32,7 +32,7 @@ export function Btn({
   ariaLabel?: string
   testId?: string
 }) {
-  const [flash, setFlash] = useState(0)
+  const spanRef = useRef<HTMLSpanElement>(null)
   const sizes = {
     xl: 'min-h-[96px] text-4xl px-5',
     lg: 'min-h-[64px] text-2xl px-4',
@@ -48,14 +48,20 @@ export function Btn({
       onClick={() => {
         if (disabled) return
         tapFeedback()
-        setFlash((f) => f + 1)
+        // flash senza rimontare il nodo: WebKit perde il submit se l'elemento cliccato sparisce
+        const el = spanRef.current
+        if (el) {
+          el.classList.remove('flash')
+          void el.offsetWidth
+          el.classList.add('flash')
+        }
         onClick?.()
       }}
       className={`bordo shadow-pieno premuto titolo flex items-center justify-center gap-3 ${sizes[size]} ${variantClass[variant]} ${
         disabled ? 'opacity-40 shadow-none' : ''
       } ${className}`}
     >
-      <span key={flash} className={`flex items-center gap-3 ${flash ? 'flash' : ''}`}>
+      <span ref={spanRef} className="flex items-center gap-3 pointer-events-none">
         {children}
       </span>
     </button>

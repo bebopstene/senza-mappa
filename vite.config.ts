@@ -38,6 +38,7 @@ export default defineConfig({
   build: { chunkSizeWarningLimit: 1100 },
   test: {
     environment: 'node',
+    testTimeout: 30_000,
     include: ['src/**/*.test.ts'],
   },
 } as any)

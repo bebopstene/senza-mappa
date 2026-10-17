@@ -25,10 +25,20 @@ export class GeoError extends Error {
  * Si ferma prima se arriva una lettura entro `goodEnoughM`.
  */
 export function getBestFix(
-  opts: { maxMs?: number; goodEnoughM?: number; onProgress?: (best: Fix | null) => void } = {},
+  opts: {
+    maxMs?: number
+    goodEnoughM?: number
+    /** dopo settleMs basta una lettura entro acceptM */
+    settleMs?: number
+    acceptM?: number
+    onProgress?: (best: Fix | null) => void
+  } = {},
 ): Promise<Fix> {
   const maxMs = opts.maxMs ?? 10_000
   const goodEnough = opts.goodEnoughM ?? 15
+  const settleMs = opts.settleMs ?? 2500
+  const acceptM = opts.acceptM ?? ACCURACY_LIMIT_M
+  const startedAt = Date.now()
   return new Promise((resolve, reject) => {
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
       reject(new GeoError('unsupported', 'Questo browser non dà la posizione'))
@@ -42,12 +52,17 @@ export function getBestFix(
       if (done) return
       done = true
       clearTimeout(timer)
+      clearTimeout(settle)
       if (watchId !== null) navigator.geolocation.clearWatch(watchId)
       if (best) resolve(best)
       else reject(err ?? new GeoError('timeout', 'Il GPS non risponde'))
     }
 
     const timer = setTimeout(() => finish(), maxMs)
+    // dopo qualche secondo una lettura entro 50 m basta: niente attese di 10 s in centro città
+    const settle = setTimeout(() => {
+      if (best && best.accuracy <= acceptM) finish()
+    }, settleMs)
 
     watchId = navigator.geolocation.watchPosition(
       (pos) => {
@@ -62,6 +77,7 @@ export function getBestFix(
           opts.onProgress?.(best)
         }
         if (fix.accuracy <= goodEnough) finish()
+        else if (Date.now() - startedAt >= settleMs && fix.accuracy <= acceptM) finish()
       },
       (err) => {
         if (err.code === err.PERMISSION_DENIED) finish(new GeoError('denied', 'Permesso posizione negato'))

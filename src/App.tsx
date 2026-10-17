@@ -36,7 +36,8 @@ export default function App() {
   // ripresa camminata (R17): con una camminata attiva si torna sempre lì
   useEffect(() => {
     if (shared || active === null) return
-    if (active && route[0] !== 'camminata') go('camminata', true)
+    // 'rivela' escluso: subito dopo la chiusura la query live può essere ancora indietro
+    if (active && route[0] !== 'camminata' && !(route[0] === 'rivela' && route[1] === active.id)) go('camminata', true)
     if (!active && route[0] === 'camminata') go('', true)
   }, [active, route, shared])
 

@@ -1,0 +1,114 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-cemento: #d6d3cb;
+  --color-nero: #111111;
+  --color-rosso-linea: #d3121d;
+  --color-muschio: #2e4b2f;
+  --color-ambra: #f2b230;
+  --color-schiuma: #ffffff;
+  --font-display: 'Archivo Black', system-ui, sans-serif;
+  --font-mono: 'Space Mono', ui-monospace, monospace;
+  --shadow-pieno: 6px 6px 0 0 #111111;
+  --shadow-pieno-lg: 8px 8px 0 0 #111111;
+  --shadow-pieno-cemento: 6px 6px 0 0 #d6d3cb;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-cemento);
+  color: var(--color-nero);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* texture cemento leggera, senza sfumature visibili */
+.cemento-texture {
+  background-color: var(--color-cemento);
+  background-image: radial-gradient(rgba(17, 17, 17, 0.07) 1px, transparent 1px);
+  background-size: 7px 7px;
+}
+
+.titolo {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+}
+
+.etichetta {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+}
+
+.bordo {
+  border: 3px solid var(--color-nero);
+}
+
+button {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--color-rosso-linea);
+  outline-offset: 3px;
+}
+
+.premuto:active {
+  transform: translate(4px, 4px);
+  box-shadow: 2px 2px 0 0 currentColor;
+}
+
+@keyframes flash {
+  0% { filter: invert(1); }
+  100% { filter: invert(0); }
+}
+.flash { animation: flash 180ms steps(2, end); }
+
+@keyframes timbro {
+  0% { transform: rotate(-9deg) scale(1.8); opacity: 0; }
+  35% { transform: rotate(-9deg) scale(0.95); opacity: 1; }
+  100% { transform: rotate(-9deg) scale(1); opacity: 1; }
+}
+.timbro { animation: timbro 260ms ease-out both; }
+
+@keyframes allarme {
+  0%, 100% { background: var(--color-ambra); }
+  50% { background: var(--color-nero); }
+}
+.allarme { animation: allarme 400ms steps(1, end) 4; }
+
+@keyframes sale {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.sale { animation: sale 160ms ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .flash, .timbro, .sale, .allarme { animation-duration: 1ms; }
+}
+
+.safe-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.safe-top { padding-top: max(16px, env(safe-area-inset-top)); }
+
+/* mappa: base in scala di grigi, i nostri segni restano a colori */
+.mappa-grigia .maplibregl-canvas { filter: grayscale(1) contrast(1.05); }
+.maplibregl-ctrl-attrib { font-family: var(--font-mono); font-size: 11px; }

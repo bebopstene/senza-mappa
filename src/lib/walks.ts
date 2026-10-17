@@ -286,8 +286,12 @@ export async function computePendingRoutes(): Promise<void> {
 export async function movePoint(pointId: string, lat: number, lng: number) {
   const p = await db.points.get(pointId)
   if (!p) return
-  await db.transaction('rw', [db.points, db.walks], async () => {
+  await db.transaction('rw', [db.points, db.walks, db.bangla], async () => {
     await db.points.update(pointId, { lat, lng, updatedAt: now() })
+    // se è l'unico check-in di quel bangla, spostiamo anche il bangla in archivio
+    if (p.banglaId && (await db.points.where('banglaId').equals(p.banglaId).count()) === 1) {
+      await db.bangla.update(p.banglaId, { lat, lng, updatedAt: now() })
+    }
     await markEdited(p.walkId)
   })
 }

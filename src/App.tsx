@@ -41,6 +41,15 @@ export default function App() {
     if (!active && route[0] === 'camminata') go('', true)
   }, [active, route, shared])
 
+  // alla cieca anche per i link: durante una camminata niente mappe, nemmeno di altri giri
+  if (shared && active)
+    return (
+      <main className="min-h-screen bg-nero text-cemento px-4 safe-top">
+        <h1 className="titolo text-5xl mt-8">PRIMA ARRIVATE.</h1>
+        <p className="mt-4 text-lg">C’è una camminata in corso: i percorsi si guardano solo alla fine.</p>
+        <a href="#/camminata" className="inline-block mt-8 bordo border-cemento etichetta px-4 py-3">TORNA ALLA CAMMINATA</a>
+      </main>
+    )
   if (shared) return <Condivisa data={route.slice(1).join('/')} />
   if (onboarded === null || active === null) return <div className="min-h-screen cemento-texture" />
   if (!onboarded) return <Onboarding onDone={() => setOnboarded(true)} />

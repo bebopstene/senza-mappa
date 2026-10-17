@@ -69,6 +69,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
   const [alarm, setAlarm] = useState(0)
   const [reminderMin, setReminderMin] = useState(10)
   const [wake, setWake] = useState(false)
+  const [wakeError, setWakeError] = useState(false)
   const [closing, setClosing] = useState(false)
   const autoBusy = useRef(false)
   const busyRef = useRef(false)
@@ -119,12 +120,18 @@ export default function Camminata({ walk }: { walk: Walk }) {
     if (autoBusy.current || busyRef.current) return
     if (Date.now() - lastManual.current < 60_000) return
     autoBusy.current = true
+    const prev = await lastPoint(walk.id)
+    if (prev && Date.now() - prev.createdAt < 60_000) {
+      autoBusy.current = false
+      return
+    }
     try {
       const fix = await getBestFix({ maxMs: 10_000, goodEnoughM: 20 })
       if (fix.accuracy > ACCURACY_LIMIT_M) return
       if (busyRef.current || Date.now() - lastManual.current < 60_000) return
       const last = await lastPoint(walk.id)
       if (last && distanceM(last, fix) < MIN_SCORING_DISTANCE_M) return
+      if (last && Date.now() - last.createdAt < 60_000) return
       const fresh = await db.walks.get(walk.id)
       if (fresh?.stato !== 'attiva') return
       const p = await addPoint(walk.id, 'checkpoint-auto', fix)
@@ -224,6 +231,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
     const next = !wake
     const ok = await setWakeLock(next)
     setWake(next && ok)
+    setWakeError(next && !ok)
     await setSetting('wakeLock', next && ok)
   }
 
@@ -310,7 +318,11 @@ export default function Camminata({ walk }: { walk: Walk }) {
             await deletePoint(flow.point.id)
             showStamp('ANNULLATO', 900)
           }}
-          onDone={() => setFlow({ step: 'birre', point: flow.point, banglaId: flow.point.banglaId! })}
+          onDone={async () => {
+            // dare un nome può ricollegare il check-in a un altro bangla: rileggiamo il punto
+            const fresh = await db.points.get(flow.point.id)
+            setFlow({ step: 'birre', point: flow.point, banglaId: fresh?.banglaId ?? flow.point.banglaId! })
+          }}
         />
       )}
       {flow?.step === 'birre' && (
@@ -401,6 +413,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
                 </button>
               </div>
               {!wakeLockSupported() && <p className="text-sm mt-2">Questo browser non lo supporta.</p>}
+              {wakeError && <p className="text-sm mt-2 text-ambra">Il telefono ha detto no (risparmio energetico?). Riprova.</p>}
             </div>
             <div className="bordo border-cemento p-3">
               <div className="etichetta text-sm mb-2">
@@ -456,7 +469,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
         <div className="fixed inset-0 z-30 bg-nero flex flex-col safe-top safe-bottom px-4" role="dialog" aria-label="Posizione per 30 secondi">
           <div className="flex items-center justify-between mb-3">
             <span className="titolo text-3xl text-rosso-linea">SIETE QUI</span>
-            <span className="titolo text-4xl tabular-nums" data-testid="perso-countdown">{Math.ceil(lostRemaining / 1000)}</span>
+            <span className="titolo text-4xl tabular-nums" data-testid="perso-countdown">{Math.min(30, Math.ceil(lostRemaining / 1000))}</span>
           </div>
           <WalkMap
             className="flex-1"
@@ -487,7 +500,6 @@ function NameSheet({
   const [shops, setShops] = useState<ShopSuggestion[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [text, setText] = useState('')
-  const [writing, setWriting] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -497,7 +509,6 @@ function NameSheet({
         if (!alive) return
         setFailed(true)
         setShops([])
-        setWriting(true)
       })
     return () => {
       alive = false
@@ -545,30 +556,29 @@ function NameSheet({
           <p className="etichetta text-sm">{failed ? 'OSM NON RISPONDE: SCRIVILO TU' : 'NESSUN NEGOZIO IN MAPPA QUI'}</p>
         )}
       </div>
-      {writing || shops !== null ? (
-        <form
-          className="flex gap-3 mb-4"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (text.trim()) void pick(text, null)
-          }}
-        >
-          <label htmlFor="nome-bangla" className="sr-only">Nome del bangla</label>
-          <input
-            id="nome-bangla"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="SCRIVI IL NOME"
-            maxLength={60}
-            autoComplete="off"
-            className="bordo border-cemento bg-nero text-cemento flex-1 min-w-0 min-h-[52px] px-3 etichetta placeholder:text-cemento/50"
-            data-testid="input-nome-bangla"
-          />
-          <Btn type="submit" variant="ambra" size="md" className="border-cemento" disabled={!text.trim()}>
-            OK
-          </Btn>
-        </form>
-      ) : null}
+      {/* il nome si può scrivere subito, senza aspettare OSM */}
+      <form
+        className="flex gap-3 mb-4"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (text.trim()) void pick(text, null)
+        }}
+      >
+        <label htmlFor="nome-bangla" className="sr-only">Nome del bangla</label>
+        <input
+          id="nome-bangla"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="SCRIVI IL NOME"
+          maxLength={60}
+          autoComplete="off"
+          className="bordo border-cemento bg-nero text-cemento flex-1 min-w-0 min-h-[52px] px-3 etichetta placeholder:text-cemento/50"
+          data-testid="input-nome-bangla"
+        />
+        <Btn type="submit" variant="ambra" size="md" className="border-cemento" disabled={!text.trim()}>
+          OK
+        </Btn>
+      </form>
     </Sheet>
   )
 }

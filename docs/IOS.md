@@ -45,3 +45,22 @@ poi ▶︎ in Xcode con l'iPhone collegato.
 - Le chiamate a `/api/route` partono da `capacitor://localhost` verso `https://senza-mappa.vercel.app`: la funzione risponde con i permessi CORS per quell'origine (`api/route.ts`).
 - I link condivisi puntano sempre al sito, così si aprono anche senza app.
 - Il service worker non serve nell'app: i file sono già dentro il pacchetto.
+
+## Portare le camminate dal sito all'app
+
+Sito e app hanno archivi separati sul telefono (Safari da una parte, l'app dall'altra).
+
+1. Sul **sito** (Safari o l'icona sulla schermata Home, quella con cui hai fatto la camminata): **ARCHIVIO → ESPORTA TUTTO**, oppure apri una camminata → **ESPORTA JSON**. Scegli "Salva su File".
+2. Nell'**app**: **ARCHIVIO → IMPORTA** → scegli il file da File.
+
+In alternativa si può incollare il link condiviso (meno dettagli: niente nomi dei negozi se erano nascosti). Reimportare lo stesso file non crea doppioni.
+
+## Installare senza premere Play
+
+Con l'iPhone collegato via cavo e il Team già scelto in Xcode:
+
+```bash
+npm run ios:sync
+cd ios/App && xcodebuild -project App.xcodeproj -scheme App -destination 'platform=iOS,name=<nome iPhone>' -allowProvisioningUpdates build
+xcrun devicectl device install app --device <UDID> <percorso App.app>
+```

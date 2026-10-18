@@ -318,6 +318,10 @@ async function markEdited(walkId: string) {
   await db.walks.update(walkId, { modificata: true, stato: 'da-calcolare', updatedAt: now() })
 }
 
+export async function renameBangla(banglaId: string, nome: string) {
+  await db.bangla.update(banglaId, { nome: nome.trim().slice(0, 60), updatedAt: now() })
+}
+
 export async function renameWalk(walkId: string, nome: string) {
   await db.walks.update(walkId, { nome: nome.trim().slice(0, 60) || 'CAMMINATA', updatedAt: now() })
 }

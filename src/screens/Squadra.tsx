@@ -85,11 +85,11 @@ export default function Squadra() {
           className="bordo bg-schiuma flex-1 min-w-0 min-h-[56px] px-3 text-lg etichetta placeholder:text-nero/40"
           data-testid="input-soprannome"
         />
-        <Btn type="submit" variant="nero" size="md" disabled={!input.trim() || team.length >= MAX_TEAM} testId="aggiungi">
+        <Btn type="submit" variant="nero" size="md" className="min-w-[56px]" ariaLabel="Aggiungi soprannome" disabled={!input.trim() || team.length >= MAX_TEAM} testId="aggiungi">
           +
         </Btn>
       </form>
-      <p className="etichetta text-xs h-5 text-rosso-linea" role="alert">{error}</p>
+      <p className="etichetta text-sm min-h-5 text-nero" role="alert">{error}</p>
 
       <ul className="flex flex-wrap gap-3 my-4" aria-label="Squadra">
         {team.map((s) => (

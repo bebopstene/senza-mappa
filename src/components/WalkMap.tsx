@@ -195,7 +195,19 @@ export function WalkMap({
         }, 15_000)
         mapRef.current = map
       })
-      .catch(() => setFailed(true))
+      .catch(() => {
+        // dopo un deploy il vecchio chunk può non esistere più: ricarichiamo una volta
+        try {
+          if (navigator.onLine && !sessionStorage.getItem('sm-reload-map')) {
+            sessionStorage.setItem('sm-reload-map', '1')
+            location.reload()
+            return
+          }
+        } catch {
+          /* storage bloccato */
+        }
+        setFailed(true)
+      })
     return () => {
       cancelled = true
       markerRefs.current.forEach((m) => m.remove())

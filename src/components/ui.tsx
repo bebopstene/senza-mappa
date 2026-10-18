@@ -34,7 +34,7 @@ export function Btn({
 }) {
   const spanRef = useRef<HTMLSpanElement>(null)
   const sizes = {
-    xl: 'min-h-[96px] text-4xl px-5',
+    xl: 'min-h-[96px] text-[clamp(26px,8.5vw,36px)] px-4',
     lg: 'min-h-[64px] text-2xl px-4',
     md: 'min-h-[52px] text-lg px-3',
     sm: 'min-h-[44px] text-base px-3',
@@ -57,11 +57,11 @@ export function Btn({
         }
         onClick?.()
       }}
-      className={`bordo shadow-pieno premuto titolo flex items-center justify-center gap-3 ${sizes[size]} ${variantClass[variant]} ${
+      className={`bordo shadow-pieno premuto titolo min-w-0 flex items-center justify-center gap-3 ${sizes[size]} ${variantClass[variant]} ${
         disabled ? 'opacity-40 shadow-none' : ''
       } ${className}`}
     >
-      <span ref={spanRef} className="flex items-center gap-3 pointer-events-none">
+      <span ref={spanRef} className="flex min-w-0 items-center gap-3 pointer-events-none text-center">
         {children}
       </span>
     </button>
@@ -194,10 +194,24 @@ export function Sheet({
   onClose?: () => void
   dark?: boolean
 }) {
+  const panel = useRef<HTMLDivElement>(null)
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  // fuoco dentro il foglio all'apertura (una volta sola, per non rubarlo agli input) ed Esc per chiudere
+  useEffect(() => {
+    panel.current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeRef.current?.()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   return (
     <div className="fixed inset-0 z-30 flex flex-col justify-end bg-nero/60" onClick={onClose} role="dialog" aria-modal="true" aria-label={title}>
       <div
-        className={`sale bordo border-b-0 safe-bottom max-h-[92vh] overflow-y-auto px-4 pt-5 ${
+        ref={panel}
+        tabIndex={-1}
+        className={`sale bordo border-b-0 outline-none safe-bottom max-h-[92vh] overflow-y-auto px-4 pt-5 ${
           dark ? 'bg-nero text-cemento border-cemento' : 'bg-cemento text-nero'
         }`}
         onClick={(e) => e.stopPropagation()}

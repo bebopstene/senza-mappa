@@ -50,7 +50,7 @@ export default function Onboarding({ onDone }: { onDone: () => void }) {
       <section className="bordo bg-muschio text-schiuma p-4 mb-6">
         <h2 className="etichetta text-sm mb-2">PERCHÉ SERVE LA POSIZIONE</h2>
         <p>
-          La leggiamo solo quando tocchi un pulsante (o quando riapri l’app), mai in continuo. Resta sul telefono. Alla fine
+          La leggiamo solo quando toccate un pulsante (o quando riaprite l’app), mai in continuo. Resta sul telefono. Alla fine
           serve per disegnare il percorso.
         </p>
       </section>

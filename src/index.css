@@ -41,22 +41,27 @@ body {
   background-size: 7px 7px;
 }
 
-.titolo {
-  font-family: var(--font-display);
-  text-transform: uppercase;
-  line-height: 0.9;
-  letter-spacing: -0.03em;
-}
+/* nel layer components: così le utility (border-cemento, leading-*, ecc.) possono sovrascriverle */
+@layer components {
+  .titolo {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    line-height: 0.9;
+    letter-spacing: -0.03em;
+    overflow-wrap: anywhere;
+  }
 
-.etichetta {
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-weight: 700;
-}
+  .etichetta {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
 
-.bordo {
-  border: 3px solid var(--color-nero);
+  .bordo {
+    border: 3px solid var(--color-nero);
+  }
 }
 
 button {

@@ -32,7 +32,7 @@ export function ScoreBoard({ bundle }: { bundle: WalkBundle }) {
                     {t}
                   </span>
                 ))}
-                {p.domande > 0 && <div className="etichetta text-xs text-cemento mt-1">{p.domande} DOMANDE AI PASSANTI</div>}
+                {p.domande > 0 && <div className="etichetta text-xs text-cemento mt-1">{p.domande} {p.domande === 1 ? 'DOMANDA' : 'DOMANDE'} AI PASSANTI</div>}
               </div>
               <span className="titolo text-xl text-cemento tabular-nums text-right">{p.birre}</span>
               <span className="titolo text-3xl tabular-nums text-right">{p.punti}</span>

@@ -67,9 +67,6 @@ export function RevealView({ bundle, status }: { bundle: WalkBundle; status?: Re
           <li className="flex items-center gap-3"><span className="-rotate-6 border-[3px] border-rosso-linea text-rosso-linea titolo text-xs px-1">PERSI</span> “MI SONO PERSO”</li>
         </ul>
       )}
-      {bundle.walk.percorsoTipo === 'dritte' && (
-        <p className="etichetta text-xs mt-2 text-rosso-linea">IL ROUTER NON HA RISPOSTO SU QUALCHE TRATTO: LINEE DRITTE</p>
-      )}
 
       <section className="mt-6" aria-label="Statistiche">
         <div className="grid grid-cols-2 gap-0 [&>*]:-mt-[3px] [&>*]:-ml-[3px] pl-[3px] pt-[3px]">

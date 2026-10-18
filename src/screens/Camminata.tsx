@@ -275,7 +275,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
       <div className="flex items-start justify-between">
         <div className="min-w-0">
           <div className="etichetta text-xs truncate max-w-[60vw]">{walk.nome}</div>
-          <div className="titolo text-[clamp(56px,20vw,112px)] tabular-nums mt-1" data-testid="timer" aria-label="Tempo trascorso">
+          <div className="titolo text-[clamp(48px,16vw,112px)] tabular-nums mt-1 pr-2" data-testid="timer" aria-label="Tempo trascorso">
             {elapsed(now - walk.startedAt)}
           </div>
         </div>
@@ -368,7 +368,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
         <Sheet title="CHI HA CHIESTO?" dark>
           <button
             type="button"
-            className="etichetta underline min-h-[44px] mb-3 mr-6 text-rosso-linea"
+            className="etichetta underline min-h-[44px] mb-3 mr-6 text-ambra"
             data-testid="annulla-passante"
             onClick={async () => {
               lastManual.current = Date.now()
@@ -549,7 +549,7 @@ function NameSheet({
         <Btn variant="nero" size="md" className="w-full border-cemento shadow-pieno-cemento" onClick={onDone} testId="salta">
           SALTA
         </Btn>
-        <button type="button" className="etichetta text-sm underline text-rosso-linea min-h-[44px] mt-2" onClick={onCancel} data-testid="annulla-checkin">
+        <button type="button" className="etichetta text-sm underline text-ambra min-h-[44px] mt-2" onClick={onCancel} data-testid="annulla-checkin">
           TAP SBAGLIATO? ANNULLA CHECK-IN
         </button>
       </div>

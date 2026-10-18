@@ -12,6 +12,7 @@ import {
   deletePointAfterClose,
   movePoint,
   removeDrinks,
+  renameBangla,
   renameWalk,
   setVote,
 } from '../lib/walks'
@@ -90,7 +91,7 @@ export default function Modifica({ walkId }: { walkId: string }) {
                 </div>
                 <div className="text-xs mt-1">
                   {new Date(p.createdAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · ±{p.accuracy} M
-                  {p.accuracy > 50 && <span className="text-rosso-linea font-bold"> · IMPRECISO</span>}
+                  {p.accuracy > 50 && <span className="font-bold underline"> · IMPRECISO</span>}
                 </div>
               </div>
               {confirmDel === p.id ? (
@@ -132,9 +133,17 @@ export default function Modifica({ walkId }: { walkId: string }) {
           <div className="grid gap-5">
             {lista.map((b) => (
               <div key={b.id} className="bordo shadow-pieno bg-cemento p-3">
-                <div className="titolo text-xl mb-3">
-                  {b.n}. {b.nome}
-                </div>
+                <label className="etichetta text-xs" htmlFor={`nome-bangla-${b.id}`}>
+                  {b.n}. NOME DEL BANGLA
+                </label>
+                <input
+                  id={`nome-bangla-${b.id}`}
+                  defaultValue={bundle.bangla.find((x) => x.id === b.id)?.nome ?? ''}
+                  placeholder={`BANGLA ${b.n}`}
+                  maxLength={60}
+                  onBlur={(e) => void renameBangla(b.id, e.target.value)}
+                  className="bordo bg-schiuma w-full min-h-[48px] px-3 etichetta mt-2 mb-4"
+                />
                 <div className="mb-2 etichetta text-xs">VOTO</div>
                 <VoteBlocks value={b.voto} onChange={(v) => void (v === b.voto ? clearVote(walkId, b.id) : setVote(walkId, b.id, v))} />
                 <div className="mt-4 mb-2 etichetta text-xs">BIRRE</div>

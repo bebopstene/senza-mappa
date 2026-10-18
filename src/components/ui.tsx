@@ -291,7 +291,7 @@ export function Counter({ label, value, dark }: { label: string; value: number |
   return (
     <div className={`bordo p-3 ${dark ? 'border-cemento' : ''}`}>
       <div className="titolo text-5xl tabular-nums">{value}</div>
-      <div className="etichetta text-sm mt-1">{label}</div>
+      <div className="etichetta text-sm mt-1 tracking-[0.02em] [overflow-wrap:normal]">{label}</div>
     </div>
   )
 }

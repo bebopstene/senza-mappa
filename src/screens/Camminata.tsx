@@ -24,6 +24,7 @@ import { beep, canVibrate, setWakeLock, unlockAudio, vibrate, wakeLockSupported 
 import { useCapture } from '../components/useCapture'
 import { Btn, Counter, HoldButton, MugIcon, FlagIcon, PersonIcon, WcIcon, Sheet, Stamp, UndoBar, VoteBlocks, useStamp } from '../components/ui'
 import { WalkMap } from '../components/WalkMap'
+import { FogMap } from '../components/FogMap'
 
 const UNDO_MS = 5000
 const LOST_MAP_MS = 30_000
@@ -39,6 +40,7 @@ type Flow =
   | { step: 'perso-umano' }
   | { step: 'perso-mappa'; point: Point; until: number }
   | { step: 'menu' }
+  | { step: 'nebbia' }
 
 function useNow(ms = 1000) {
   const [now, setNow] = useState(Date.now())
@@ -73,6 +75,8 @@ export default function Camminata({ walk }: { walk: Walk }) {
   const [reminderMin, setReminderMin] = useState(10)
   const [wake, setWake] = useState(false)
   const [wakeError, setWakeError] = useState(false)
+  /** mappa nella nebbia: si può spegnere dal menu */
+  const [nebbia, setNebbia] = useState(true)
   const [closing, setClosing] = useState(false)
   const autoBusy = useRef(false)
   /** un'azione alla volta: tap doppi non creano punti doppi */
@@ -101,6 +105,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
 
   useEffect(() => {
     getSetting('reminderMin', 10).then(setReminderMin)
+    getSetting('nebbia', true).then(setNebbia)
     getSetting('wakeLock', false).then((on) => {
       setWake(on)
       if (on) void setWakeLock(true)
@@ -293,15 +298,27 @@ export default function Camminata({ walk }: { walk: Walk }) {
             {elapsed(now - walk.startedAt)}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setFlow({ step: 'menu' })}
-          className="bordo border-cemento etichetta text-sm min-h-[48px] px-3 shrink-0"
-          aria-label="Menu"
-          data-testid="menu"
-        >
-          MENU
-        </button>
+        <div className="flex flex-col gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setFlow({ step: 'menu' })}
+            className="bordo border-cemento etichetta text-sm min-h-[48px] px-3"
+            aria-label="Menu"
+            data-testid="menu"
+          >
+            MENU
+          </button>
+          {nebbia && (
+            <button
+              type="button"
+              onClick={() => setFlow({ step: 'nebbia' })}
+              className="bordo border-cemento bg-cemento text-nero etichetta text-sm min-h-[48px] px-3"
+              data-testid="btn-nebbia"
+            >
+              NEBBIA
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3 my-5">
@@ -471,6 +488,25 @@ export default function Camminata({ walk }: { walk: Walk }) {
               {wakeError && <p className="text-sm mt-2 text-ambra">Il telefono ha detto no (risparmio energetico?). Riprova.</p>}
             </div>
             <div className="bordo border-cemento p-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="etichetta text-sm">MAPPA NELLA NEBBIA</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={nebbia}
+                  onClick={() => {
+                    setNebbia(!nebbia)
+                    void setSetting('nebbia', !nebbia)
+                  }}
+                  className={`bordo border-cemento etichetta min-h-[44px] min-w-[72px] ${nebbia ? 'bg-ambra text-nero' : 'bg-nero text-cemento'}`}
+                  data-testid="nebbia-toggle"
+                >
+                  {nebbia ? 'SÌ' : 'NO'}
+                </button>
+              </div>
+              <p className="text-sm mt-2">Scopre la città a quadrati attorno ai punti segnati. Niente percorso, niente posizione dal vivo.</p>
+            </div>
+            <div className="bordo border-cemento p-3">
               <div className="etichetta text-sm mb-2">
                 PROMEMORIA CHECKPOINT {canVibrate() ? '(VIBRA)' : '(FLASH + SUONO)'}
               </div>
@@ -520,6 +556,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
           </div>
         </Sheet>
       )}
+      {flow?.step === 'nebbia' && <FogMap points={points} onClose={() => setFlow(null)} />}
       {flow?.step === 'perso-mappa' && (
         <div className="fixed inset-0 z-30 bg-nero flex flex-col safe-top safe-bottom px-4" role="dialog" aria-label="Posizione per 30 secondi">
           <div className="flex items-center justify-between mb-3">

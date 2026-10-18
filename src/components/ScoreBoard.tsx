@@ -32,6 +32,14 @@ export function ScoreBoard({ bundle }: { bundle: WalkBundle }) {
                     {t}
                   </span>
                 ))}
+                {(() => {
+                  const ing = bundle.points.find((x) => x.tipo === 'ingresso' && x.participantId === p.participantId)
+                  return ing ? (
+                    <div className="etichetta text-xs text-cemento mt-1">
+                      ENTRATO ALLE {new Date(ing.createdAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  ) : null
+                })()}
                 {p.domande > 0 && <div className="etichetta text-xs text-cemento mt-1">{p.domande} {p.domande === 1 ? 'DOMANDA' : 'DOMANDE'} AI PASSANTI</div>}
               </div>
               <span className="titolo text-xl text-cemento tabular-nums text-right">{p.birre}</span>

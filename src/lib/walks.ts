@@ -7,6 +7,7 @@ import {
   getSetting,
   type AwardCategory,
   type Bagno,
+  type Participant,
   type Bangla,
   type LngLat,
   type Point,
@@ -180,11 +181,18 @@ async function removeBagnoIfOrphan(bagnoId: string) {
 
 /** elimina un punto; per un bangla toglie anche birre e voto di questa camminata se non ci sono altri check-in lì */
 export async function deletePoint(pointId: string): Promise<void> {
-  await db.transaction('rw', [db.points, db.bangla, db.bagni, db.drinks, db.reviews, db.awards], async () => {
+  await db.transaction('rw', [db.points, db.bangla, db.bagni, db.drinks, db.reviews, db.awards, db.participants], async () => {
     const p = await db.points.get(pointId)
     if (!p) return
     await db.points.delete(pointId)
     if (p.bagnoId) await removeBagnoIfOrphan(p.bagnoId)
+    // annullare un ingresso toglie anche il giocatore, se non ha ancora fatto niente
+    if (p.tipo === 'ingresso' && p.participantId) {
+      const pid = p.participantId
+      const birre = await db.drinks.where('participantId').equals(pid).count()
+      const domande = await db.points.where({ walkId: p.walkId }).filter((x) => x.participantId === pid).count()
+      if (birre === 0 && domande === 0) await db.participants.delete(pid)
+    }
     if (p.banglaId) {
       const sameWalk = await db.points.where({ walkId: p.walkId }).filter((x) => x.banglaId === p.banglaId).count()
       if (sameWalk === 0) {
@@ -275,6 +283,41 @@ export async function removeSavedPlace(kind: 'bangla' | 'bagno', id: string) {
       await db.points.where('bagnoId').equals(id).modify({ bagnoId: null, updatedAt: now() })
       await db.bagni.delete(id)
     }
+  })
+}
+
+/** giocatore extra a camminata iniziata: il punto d'ingresso segna dove e quando è entrato */
+export async function addParticipantMidWalk(
+  walkId: string,
+  soprannome: string,
+  fix: Fix | null,
+): Promise<{ participant: Participant; point: Point | null }> {
+  return db.transaction('rw', [db.walks, db.participants, db.points, db.settings], async () => {
+    const walk = await db.walks.get(walkId)
+    if (walk?.stato !== 'attiva') throw new Error('La camminata non è in corso')
+    const team = await db.participants.where({ walkId }).toArray()
+    const nome = soprannome.trim().replace(/\s+/g, ' ').slice(0, 16).toUpperCase()
+    if (!nome) throw new Error('Serve un soprannome')
+    if (team.length >= 12) throw new Error('Massimo 12')
+    if (team.some((p) => p.soprannome === nome)) throw new Error('C’è già')
+    const t = now()
+    const participant: Participant = {
+      id: uuid(),
+      walkId,
+      soprannome: nome,
+      ordine: Math.max(-1, ...team.map((p) => p.ordine)) + 1,
+      joinedAt: t,
+      updatedAt: t,
+    }
+    await db.participants.add(participant)
+    let point: Point | null = null
+    if (fix) {
+      point = makePoint(walkId, 'ingresso', fix, t, { participantId: participant.id })
+      await db.points.add(point)
+    }
+    // la prossima volta "stessa squadra" include anche chi si è aggiunto
+    await setSetting('lastTeam', [...team.sort((a, z) => a.ordine - z.ordine).map((p) => p.soprannome), nome])
+    return { participant, point }
   })
 }
 

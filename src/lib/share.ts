@@ -72,7 +72,7 @@ const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFin
 const isIdx = (x: unknown, len: number) => Number.isInteger(x) && (x as number) >= 0 && (x as number) < len
 const isLat = (x: unknown) => isNum(x) && Math.abs(x) <= 90
 const isLng = (x: unknown) => isNum(x) && Math.abs(x) <= 180
-const TIPI_PUNTO = ['partenza', 'checkpoint', 'checkpoint-auto', 'passante', 'bagno', 'perso', 'bangla', 'arrivo']
+const TIPI_PUNTO = ['partenza', 'checkpoint', 'checkpoint-auto', 'passante', 'bagno', 'ingresso', 'perso', 'bangla', 'arrivo']
 const CATEGORIE = ['preferito', 'fresca', 'varieta', 'gentili', 'location']
 const MAX_DATE = 8.64e15
 

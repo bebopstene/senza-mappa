@@ -6,6 +6,7 @@ import { go } from '../router'
 import { distanceM, getBestFix, ACCURACY_LIMIT_M, MIN_SCORING_DISTANCE_M } from '../lib/geo'
 import {
   addDrink,
+  addParticipantMidWalk,
   addPoint,
   checkInBagno,
   checkInBangla,
@@ -40,6 +41,7 @@ type Flow =
   | { step: 'perso-umano' }
   | { step: 'perso-mappa'; point: Point; until: number }
   | { step: 'menu' }
+  | { step: 'giocatore' }
   | { step: 'nebbia' }
 
 function useNow(ms = 1000) {
@@ -466,6 +468,16 @@ export default function Camminata({ walk }: { walk: Walk }) {
       {flow?.step === 'menu' && (
         <Sheet title="MENU" dark onClose={() => setFlow(null)}>
           <div className="grid gap-4 mb-4">
+            <Btn
+              variant="cemento"
+              size="lg"
+              className="border-cemento"
+              onClick={() => setFlow({ step: 'giocatore' })}
+              disabled={participants.length >= 12}
+              testId="menu-giocatore"
+            >
+              {participants.length >= 12 ? 'SQUADRA PIENA (12)' : '+ GIOCATORE'}
+            </Btn>
             <Btn variant="nero" size="lg" className="border-rosso-linea text-rosso-linea shadow-pieno-cemento" onClick={() => setFlow({ step: 'perso-chiedi' })} testId="mi-sono-perso">
               MI SONO PERSO
             </Btn>
@@ -555,6 +567,20 @@ export default function Camminata({ walk }: { walk: Walk }) {
             </Btn>
           </div>
         </Sheet>
+      )}
+      {flow?.step === 'giocatore' && (
+        <NuovoGiocatore
+          team={participants.map((p) => p.soprannome)}
+          onCancel={() => setFlow(null)}
+          onAdd={async (nome) => {
+            lastManual.current = Date.now()
+            const fix = await capture(`ENTRA ${nome}`)
+            const r = await addParticipantMidWalk(walk.id, nome, fix)
+            setFlow(null)
+            showStamp(`+ ${r.participant.soprannome}`)
+            if (r.point) offerUndo(r.point.id, `${r.participant.soprannome} AGGIUNTO`)
+          }}
+        />
       )}
       {flow?.step === 'nebbia' && <FogMap points={points} onClose={() => setFlow(null)} />}
       {flow?.step === 'perso-mappa' && (
@@ -821,6 +847,71 @@ function BagnoSheet({
           A PAGAMENTO
         </Btn>
       </div>
+    </Sheet>
+  )
+}
+
+function NuovoGiocatore({
+  team,
+  onAdd,
+  onCancel,
+}: {
+  team: string[]
+  onAdd: (nome: string) => Promise<void>
+  onCancel: () => void
+}) {
+  const [nome, setNome] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const clean = nome.trim().replace(/\s+/g, ' ').toUpperCase()
+
+  const submit = async () => {
+    if (!clean || saving) return
+    if (team.includes(clean)) return setError('C’È GIÀ')
+    setSaving(true)
+    try {
+      await onAdd(clean)
+    } catch (e) {
+      setError(e instanceof Error ? e.message.toUpperCase() : 'ERRORE')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Sheet title="ENTRA UN GIOCATORE" dark onClose={onCancel}>
+      <p className="mb-4">Segniamo dove e quando entra: alla fine lo vedete sulla mappa.</p>
+      <form
+        className="flex gap-3 mb-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void submit()
+        }}
+      >
+        <label htmlFor="nuovo-giocatore" className="sr-only">Soprannome</label>
+        <input
+          id="nuovo-giocatore"
+          value={nome}
+          onChange={(e) => {
+            setNome(e.target.value)
+            setError(null)
+          }}
+          placeholder="SOPRANNOME"
+          maxLength={16}
+          autoComplete="off"
+          autoCapitalize="characters"
+          enterKeyHint="done"
+          className="bordo border-cemento bg-nero text-cemento flex-1 min-w-0 min-h-[56px] px-3 text-lg etichetta placeholder:text-cemento/50"
+          data-testid="input-nuovo-giocatore"
+        />
+        <Btn type="submit" variant="ambra" size="md" className="border-cemento" disabled={!clean || saving} testId="conferma-giocatore">
+          ENTRA
+        </Btn>
+      </form>
+      <p className="etichetta text-sm min-h-6 text-ambra mb-3" role="alert">{error}</p>
+      <p className="etichetta text-xs mb-4">IN SQUADRA: {team.join(' · ')}</p>
+      <button type="button" className="etichetta underline min-h-[44px] mb-3" onClick={onCancel}>
+        LASCIA STARE
+      </button>
     </Sheet>
   )
 }

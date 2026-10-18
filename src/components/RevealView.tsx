@@ -40,7 +40,7 @@ function Stat({ label, value, wide }: { label: string; value: ReactNode; wide?: 
 
 export function RevealView({ bundle, status }: { bundle: WalkBundle; status?: ReactNode }) {
   const stats = useMemo(() => computeStats(bundle), [bundle])
-  const markers = useMemo(() => markersFromPoints(bundle.points, bundle.bangla), [bundle.points, bundle.bangla])
+  const markers = useMemo(() => markersFromPoints(bundle.points, bundle.bangla, bundle.participants), [bundle.points, bundle.bangla, bundle.participants])
   const lista = useMemo(() => banglaOrder(bundle), [bundle])
   const [legend, setLegend] = useState(false)
   const [map, setMap] = useState<MlMap | null>(null)
@@ -113,6 +113,7 @@ export function RevealView({ bundle, status }: { bundle: WalkBundle; status?: Re
           <li className="flex items-center gap-3"><span className="inline-block w-5 h-5 bg-nero" /> PARTENZA E ARRIVO</li>
           <li className="flex items-center gap-3"><span className="inline-flex w-5 h-5 border-[3px] border-nero bg-schiuma text-[11px] font-bold items-center justify-center">?</span> PASSANTE</li>
           <li className="flex items-center gap-3"><span className="inline-flex px-1 h-5 border-[3px] border-nero bg-muschio text-schiuma text-[11px] font-bold items-center">WC</span> SOSTA BAGNO</li>
+          <li className="flex items-center gap-3"><span className="inline-flex px-1 h-5 border-[3px] border-nero bg-schiuma text-[11px] font-bold items-center">+NOME</span> ENTRA UN GIOCATORE, CON L’ORA</li>
           <li className="flex items-center gap-3"><span className="-rotate-6 border-[3px] border-rosso-linea text-rosso-linea titolo text-xs px-1">PERSI</span> “MI SONO PERSO”</li>
         </ul>
       )}

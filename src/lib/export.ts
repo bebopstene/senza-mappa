@@ -17,6 +17,7 @@ const TIPO: Record<PointType, string> = {
   'checkpoint-auto': 'CHECKPOINT AUTO',
   passante: 'PASSANTE',
   bagno: 'BAGNO',
+  ingresso: 'ENTRA',
   perso: 'MI SONO PERSO',
   bangla: 'BANGLA',
   arrivo: 'ARRIVO',
@@ -51,6 +52,9 @@ export function buildGpx(b: WalkBundle): string {
   const order: string[] = []
   const wpts = b.points.map((p) => {
     let name = TIPO[p.tipo]
+    if (p.tipo === 'ingresso') {
+      name = `ENTRA ${b.participants.find((x) => x.id === p.participantId)?.soprannome ?? 'UN GIOCATORE'}`
+    }
     if (p.tipo === 'bagno') {
       const bg = b.bagni?.find((x) => x.id === p.bagnoId)
       const extra = [bg?.nome, bg?.gratis === true ? 'GRATIS' : bg?.gratis === false ? 'A PAGAMENTO' : null].filter(Boolean).join(' · ')
@@ -298,6 +302,20 @@ async function drawPoster(map: MlMap, b: WalkBundle): Promise<Blob> {
           ctx.fillStyle = C.rosso
           ctx.fillText('PERSI', -tw / 2, 8)
           ctx.restore()
+        },
+      })
+    } else if (p.tipo === 'ingresso') {
+      const nome = b.participants.find((x) => x.id === p.participantId)?.soprannome ?? ''
+      const ora = new Date(p.createdAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+      const label = `+${nome} ${ora}`
+      draw.push({
+        z: 2,
+        fn: () => {
+          ctx.font = "18px 'Archivo Black', sans-serif"
+          const tw = ctx.measureText(label).width
+          box(ctx, x - tw / 2 - 10, y - 17, tw + 20, 34, C.schiuma, 4)
+          ctx.fillStyle = C.nero
+          ctx.fillText(label, x - tw / 2, y + 7)
         },
       })
     } else if (p.tipo === 'bagno') {

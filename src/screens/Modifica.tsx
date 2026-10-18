@@ -24,6 +24,7 @@ const TIPI: Record<PointType, string> = {
   'checkpoint-auto': 'CHECKPOINT AUTO',
   passante: 'PASSANTE',
   bagno: 'SOSTA BAGNO',
+  ingresso: 'ENTRA',
   perso: 'MI SONO PERSO',
   bangla: 'BANGLA',
   arrivo: 'ARRIVO',
@@ -35,7 +36,7 @@ export default function Modifica({ walkId }: { walkId: string }) {
   const [confirmDel, setConfirmDel] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [nome, setNome] = useState<string | null>(null)
-  const markers = useMemo(() => (bundle ? markersFromPoints(bundle.points, bundle.bangla) : []), [bundle])
+  const markers = useMemo(() => (bundle ? markersFromPoints(bundle.points, bundle.bangla, bundle.participants) : []), [bundle])
 
   if (!bundle) return <main className="min-h-screen cemento-texture" />
   const lista = banglaOrder(bundle)
@@ -89,6 +90,7 @@ export default function Modifica({ walkId }: { walkId: string }) {
                 <div className="etichetta text-sm">
                   {i + 1}. {TIPI[p.tipo]}
                   {p.banglaId && ` · ${bundle.bangla.find((b) => b.id === p.banglaId)?.nome || ''}`}
+                  {p.tipo === 'ingresso' && ` ${bundle.participants.find((x) => x.id === p.participantId)?.soprannome ?? ''}`}
                   {p.bagnoId && ` · ${bundle.bagni?.find((b) => b.id === p.bagnoId)?.nome || ''}`}
                 </div>
                 <div className="text-xs mt-1">

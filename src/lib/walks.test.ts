@@ -163,3 +163,35 @@ describe('eliminare camminate', () => {
     expect((await db.bagni.toArray()).map((b) => b.id)).toEqual([salvato.id])
   })
 })
+
+describe('giocatori aggiunti durante la camminata', () => {
+  it('segna dove e quando entra, e l’annulla lo toglie', async () => {
+    const { addParticipantMidWalk, getLastTeam } = await import('./walks')
+    const { buildGpx } = await import('./export')
+    const w = await startWalk(['ANNA', 'BEPPE'], '', fix(45.48))
+    const r = await addParticipantMidWalk(w.id, ' carlo ', fix(45.483))
+    expect(r.participant.soprannome).toBe('CARLO')
+    expect(r.participant.joinedAt).toBeTruthy()
+    expect(r.point?.tipo).toBe('ingresso')
+    await expect(addParticipantMidWalk(w.id, 'Carlo', fix(45.483))).rejects.toThrow()
+    expect(await getLastTeam()).toEqual(['ANNA', 'BEPPE', 'CARLO'])
+
+    // chi entra può bere: le birre restano sue
+    const tardi = await addParticipantMidWalk(w.id, 'DORA', fix(45.484))
+    const { bangla } = await checkInBangla(w.id, fix(45.485))
+    await addDrink(w.id, bangla.id, tardi.participant.id)
+
+    await closeWalk(w.id, fix(45.486))
+    const b = (await loadBundle(w.id))!
+    expect(buildGpx(b)).toContain('ENTRA CARLO')
+    const shared = decodeBundle(encodeBundle(b, { nomiNegozi: false }))!
+    const ing = shared.points.filter((p) => p.tipo === 'ingresso')
+    expect(ing.map((p) => shared.participants.find((x) => x.id === p.participantId)?.soprannome)).toEqual(['CARLO', 'DORA'])
+
+    // annullare l'ingresso di CARLO (senza birre) lo toglie; DORA ha bevuto e resta
+    await deletePoint(r.point!.id)
+    await deletePoint(tardi.point!.id)
+    const names = (await db.participants.where({ walkId: w.id }).toArray()).map((p) => p.soprannome).sort()
+    expect(names).toEqual(['ANNA', 'BEPPE', 'DORA'])
+  })
+})

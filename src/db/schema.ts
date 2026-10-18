@@ -8,6 +8,8 @@ export type PointType =
   | 'checkpoint-auto'
   | 'passante'
   | 'bagno'
+  /** un giocatore si unisce a camminata iniziata (participantId = chi entra) */
+  | 'ingresso'
   | 'perso'
   | 'bangla'
   | 'arrivo'
@@ -39,6 +41,8 @@ export interface Participant {
   walkId: string
   soprannome: string
   ordine: number
+  /** quando si è unito, se è entrato a camminata iniziata */
+  joinedAt?: number | null
   updatedAt: number
 }
 

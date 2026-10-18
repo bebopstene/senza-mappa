@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Map as MlMap, Marker, LngLatBoundsLike } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { Bangla, LngLat, Point } from '../db/schema'
+import type { Bangla, LngLat, Participant, Point } from '../db/schema'
 
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/positron'
 
@@ -10,12 +10,13 @@ export interface MapMarker {
   id: string
   lat: number
   lng: number
-  kind: 'partenza' | 'arrivo' | 'checkpoint' | 'passante' | 'perso' | 'bangla' | 'bagno' | 'da-provare' | 'qui' | 'archivio'
+  kind: 'partenza' | 'arrivo' | 'checkpoint' | 'passante' | 'perso' | 'bangla' | 'bagno' | 'ingresso' | 'da-provare' | 'qui' | 'archivio'
   label?: string
   title?: string
 }
 
-export function markersFromPoints(points: Point[], bangla: Bangla[]): MapMarker[] {
+export function markersFromPoints(points: Point[], bangla: Bangla[], participants: Pick<Participant, 'id' | 'soprannome'>[] = []): MapMarker[] {
+  const who = new Map(participants.map((p) => [p.id, p.soprannome]))
   const order: string[] = []
   const names = new Map(bangla.map((b) => [b.id, b.nome]))
   const out: MapMarker[] = []
@@ -32,6 +33,10 @@ export function markersFromPoints(points: Point[], bangla: Bangla[]): MapMarker[
       out.push({ id: p.id, lat: p.lat, lng: p.lng, kind: 'arrivo', label: 'A', title: 'Arrivo' })
     } else if (p.tipo === 'passante') {
       out.push({ id: p.id, lat: p.lat, lng: p.lng, kind: 'passante', label: '?', title: 'Passante' })
+    } else if (p.tipo === 'ingresso') {
+      const nome = (p.participantId && who.get(p.participantId)) || 'GIOCATORE'
+      const ora = new Date(p.createdAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+      out.push({ id: p.id, lat: p.lat, lng: p.lng, kind: 'ingresso', label: `+${nome} ${ora}`, title: `Entra ${nome} alle ${ora}` })
     } else if (p.tipo === 'bagno') {
       out.push({ id: p.id, lat: p.lat, lng: p.lng, kind: 'bagno', label: 'WC', title: 'Sosta bagno' })
     } else if (p.tipo === 'perso') {
@@ -125,6 +130,12 @@ function markerEl(m: MapMarker, editable: boolean): HTMLElement {
     case 'qui':
       el.innerHTML = `<div style="width:26px;height:26px;${base}background:#D3121D;box-shadow:0 0 0 6px rgba(211,18,29,.25)"></div>`
       break
+    case 'ingresso': {
+      // il nome viene da un input dell'utente: niente innerHTML per il testo
+      el.innerHTML = `<div style="height:26px;padding:0 6px;${base}background:#fff;color:#111;font-size:12px;white-space:nowrap;box-shadow:3px 3px 0 #111"></div>`
+      ;(el.firstElementChild as HTMLElement).textContent = m.label ?? '+'
+      break
+    }
     case 'bagno':
       el.innerHTML = `<div style="min-width:34px;height:26px;padding:0 4px;${base}background:#2E4B2F;color:#fff;font-size:12px;box-shadow:3px 3px 0 #111">WC</div>`
       break

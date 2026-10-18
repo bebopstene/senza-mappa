@@ -23,7 +23,16 @@ import {
 import { nearbyShops, type ShopSuggestion } from '../lib/overpass'
 import { beep, canVibrate, setWakeLock, unlockAudio, vibrate, wakeLockSupported } from '../lib/feedback'
 import { useCapture } from '../components/useCapture'
-import { askNotificationPermission, cancelCheckpointReminders, isNative, scheduleCheckpointReminders } from '../lib/platform'
+import {
+  askNotificationPermission,
+  cancelCheckpointReminders,
+  isNative,
+  liveWalkEnd,
+  liveWalkUpdate,
+  onShortcut,
+  scheduleCheckpointReminders,
+  type ShortcutAction,
+} from '../lib/platform'
 import { Btn, Counter, HoldButton, MugIcon, FlagIcon, PersonIcon, WcIcon, Sheet, Stamp, UndoBar, VoteBlocks, useStamp } from '../components/ui'
 import { WalkMap } from '../components/WalkMap'
 import { FogMap } from '../components/FogMap'
@@ -149,6 +158,24 @@ export default function Camminata({ walk }: { walk: Walk }) {
     if (isNative) void scheduleCheckpointReminders(lastPointAt, reminderMin)
   }, [lastPointAt, reminderMin])
 
+  // app iOS: Live Activity con tempo e contatori; breve attesa così il primo caricamento non manda zeri
+  useEffect(() => {
+    if (!isNative) return
+    const t = setTimeout(
+      () =>
+        liveWalkUpdate({
+          walkId: walk.id,
+          name: walk.nome,
+          startedAt: walk.startedAt,
+          bangla: banglaCount,
+          checkpoint: checkpointCount,
+          lastPointAt,
+        }),
+      400,
+    )
+    return () => clearTimeout(t)
+  }, [walk.id, walk.nome, walk.startedAt, banglaCount, checkpointCount, lastPointAt])
+
   // --- checkpoint automatico alla riapertura (R27) ---
   const tryAutoCheckpoint = useCallback(async () => {
     if (autoBusy.current || busyRef.current) return
@@ -237,6 +264,17 @@ export default function Camminata({ walk }: { walk: Walk }) {
     setFlow({ step: 'passante', point: p })
   })
 
+  // Siri, Comandi, tasto Azione: come premere il pulsante (solo se non c'è già altro aperto)
+  const shortcut = useRef<(a: ShortcutAction) => void>(() => {})
+  shortcut.current = (a) => {
+    if (flow || closing || busyRef.current) {
+      showStamp('PRIMA FINITE QUI', 1400)
+      return
+    }
+    void (a === 'checkpoint' ? doCheckpoint() : doBangla())
+  }
+  useEffect(() => onShortcut((a) => shortcut.current(a)), [])
+
   const doLost = async () => {
     const fix = await capture('MI SONO PERSO')
     if (!fix) {
@@ -268,6 +306,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
       fix = null
     }
     void cancelCheckpointReminders()
+    liveWalkEnd()
     try {
       await closeWalk(walk.id, fix)
     } catch {

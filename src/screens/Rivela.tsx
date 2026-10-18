@@ -7,6 +7,7 @@ import { computeWalkRoute, deleteWalk, exportWalkJson } from '../lib/walks'
 import { ConfirmDelete } from './Archivio'
 import { encodeBundle, shareUrl } from '../lib/share'
 import { isNative, nativeShareUrl } from '../lib/platform'
+import { fileBase, saveFile } from '../lib/export'
 
 export default function Rivela({ walkId }: { walkId: string }) {
   const bundle = useBundle(walkId)
@@ -60,7 +61,7 @@ export default function Rivela({ walkId }: { walkId: string }) {
     return (
       <main className="min-h-screen bg-nero text-cemento px-4 safe-top safe-bottom flex flex-col">
         <div className="etichetta text-sm">{walk.nome}</div>
-        <h1 className="titolo text-7xl mt-6">ARRIVATI.</h1>
+        <h1 className="titolo text-[clamp(48px,16vw,72px)] mt-6">ARRIVATI.</h1>
         <p className="text-lg mt-4">Adesso potete guardare dove siete passati.</p>
         <div className="mt-auto">
           <Btn variant="ambra" size="xl" className="w-full border-cemento shadow-pieno-cemento" onClick={() => setRevealed(true)} testId="rivela">
@@ -130,15 +131,11 @@ export default function Rivela({ walkId }: { walkId: string }) {
           className="etichetta text-xs underline min-h-[44px]"
           onClick={async () => {
             const json = await exportWalkJson(walk.id)
-            const blob = new Blob([json], { type: 'application/json' })
-            const a = document.createElement('a')
-            a.href = URL.createObjectURL(blob)
-            a.download = `senza-mappa-${new Date(walk.startedAt).toISOString().slice(0, 10)}.json`
-            a.click()
-            setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+            // foglio di condivisione su iPhone (Salva su File, AirDrop…), download altrove
+            await saveFile(new Blob([json], { type: 'application/json' }), `${fileBase(bundle)}.json`)
           }}
         >
-          ESPORTA JSON (METRICHE)
+          ESPORTA JSON (BACKUP E METRICHE)
         </button>
         <button type="button" className="etichetta text-sm underline min-h-[44px]" onClick={() => setElimina(true)} data-testid="rivela-elimina">
           ELIMINA QUESTA CAMMINATA

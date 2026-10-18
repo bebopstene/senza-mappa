@@ -4,7 +4,9 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/schema'
 import { BackLink, Btn, ScreenTitle, Sheet, Stamp, useStamp } from '../components/ui'
-import { deleteWalks } from '../lib/walks'
+import { computePendingRoutes, deleteWalks } from '../lib/walks'
+import { exportAll, importText, type ImportResult } from '../lib/backup'
+import { saveFile } from '../lib/export'
 import { formatKm } from '../lib/score'
 
 export default function Archivio() {
@@ -13,6 +15,7 @@ export default function Archivio() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [confirm, setConfirm] = useState<string[] | null>(null)
   const [stamp, showStamp] = useStamp()
+  const [importa, setImporta] = useState(false)
 
   const deletable = walks.filter((w) => w.stato !== 'attiva')
   const toggle = (id: string) =>
@@ -40,6 +43,25 @@ export default function Archivio() {
     <main className="min-h-screen cemento-texture px-4 safe-top safe-bottom">
       <BackLink to="" />
       <ScreenTitle kicker="TUTTE LE CAMMINATE">ARCHIVIO</ScreenTitle>
+
+      <div className="grid grid-cols-2 gap-4 mb-5">
+        <Btn variant="ambra" size="md" onClick={() => setImporta(true)} testId="importa">
+          IMPORTA
+        </Btn>
+        <Btn
+          variant="cemento"
+          size="md"
+          disabled={walks.length === 0}
+          onClick={async () => {
+            const backup = await exportAll()
+            const day = new Date().toISOString().slice(0, 10)
+            await saveFile(new Blob([JSON.stringify(backup)], { type: 'application/json' }), `senza-mappa-backup-${day}.json`)
+          }}
+          testId="esporta-tutto"
+        >
+          ESPORTA TUTTO
+        </Btn>
+      </div>
 
       {deletable.length > 0 && (
         <div className="flex flex-wrap gap-3 mb-5">
@@ -133,8 +155,80 @@ export default function Archivio() {
       {confirm && (
         <ConfirmDelete names={names(confirm)} onCancel={() => setConfirm(null)} onConfirm={() => void doDelete(confirm)} />
       )}
+      {importa && (
+        <ImportSheet
+          onClose={() => setImporta(false)}
+          onDone={(r) => {
+            setImporta(false)
+            showStamp(r.importate ? (r.importate === 1 ? 'IMPORTATA' : `${r.importate} IMPORTATE`) : r.posti ? `${r.posti} POSTI` : 'GIÀ PRESENTE', 1400)
+            // le camminate senza percorso salvato si ricalcolano da sole
+            void computePendingRoutes().catch(() => {})
+          }}
+        />
+      )}
       {stamp && <Stamp text={stamp} small />}
     </main>
+  )
+}
+
+function ImportSheet({ onClose, onDone }: { onClose: () => void; onDone: (r: ImportResult) => void }) {
+  const [link, setLink] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const run = async (text: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      onDone(await importText(text))
+    } catch (e) {
+      setError(e instanceof Error ? e.message.toUpperCase() : 'IMPORTAZIONE NON RIUSCITA')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Sheet title="IMPORTA" onClose={onClose}>
+      <p className="mb-4">
+        Dal sito: apri la camminata, tocca <b>ESPORTA JSON</b> (o <b>ESPORTA TUTTO</b> qui in Archivio) e salva il file. Poi sceglilo qui sotto.
+      </p>
+      <label className="block mb-5">
+        <span className="sr-only">Scegli il file</span>
+        <input
+          type="file"
+          accept=".json,application/json"
+          disabled={busy}
+          onChange={async (e) => {
+            const f = e.target.files?.[0]
+            if (f) await run(await f.text())
+          }}
+          className="block w-full text-sm file:bordo file:bg-ambra file:titolo file:text-lg file:px-4 file:min-h-[56px] file:mr-3 file:shadow-pieno"
+          data-testid="importa-file"
+        />
+      </label>
+      <label className="etichetta text-sm" htmlFor="importa-link">
+        OPPURE INCOLLA IL LINK CONDIVISO
+      </label>
+      <textarea
+        id="importa-link"
+        value={link}
+        onChange={(e) => setLink(e.target.value)}
+        rows={3}
+        placeholder="https://senza-mappa.vercel.app/#/v/…"
+        className="bordo bg-schiuma w-full p-3 text-sm mt-2 mb-3"
+        data-testid="importa-link"
+      />
+      <p className="text-sm mb-4">Il link ha meno dettagli del file (niente nomi dei negozi se erano nascosti), ma basta per percorso, tappe e punteggio.</p>
+      <p className="etichetta text-sm min-h-6 mb-2" role="alert">{error}</p>
+      <div className="grid gap-3 mb-3">
+        <Btn variant="nero" className="w-full" disabled={busy || !link.trim()} onClick={() => void run(link)} testId="importa-conferma">
+          {busy ? 'IMPORTO…' : 'IMPORTA IL LINK'}
+        </Btn>
+        <button type="button" className="etichetta underline min-h-[44px]" onClick={onClose}>
+          LASCIA STARE
+        </button>
+      </div>
+    </Sheet>
   )
 }
 

@@ -6,9 +6,13 @@ import type { Point } from '../db/schema'
 import { WalkMap } from './WalkMap'
 
 /** lato di un quadrato di nebbia, in metri */
-export const CELL_M = 120
-/** quanti quadrati attorno a ogni punto si scoprono (1 = blocco 3×3) */
-export const REVEAL_RADIUS = 1
+// piccolo apposta: la nebbia deve divertire, non diventare un navigatore
+export const CELL_M = 50
+/** quanti quadrati attorno a ogni punto si scoprono (0 = solo quello del punto) */
+export const REVEAL_RADIUS = 0
+/** zoom bloccato alto: si vede solo un pezzetto di città alla volta */
+export const MIN_ZOOM = 17
+export const MAX_ZOOM = 18.5
 
 const M_PER_DEG_LAT = 111_320
 
@@ -95,27 +99,18 @@ export function FogMap({ points, onClose }: { points: Point[]; onClose: () => vo
     ctx.globalCompositeOperation = 'source-over'
   }, [map, grid])
 
-  // inquadra la zona scoperta
+  // si parte dall'ultimo punto, molto vicini; niente nomi di vie, che aiuterebbero a orientarsi
   useEffect(() => {
-    if (!map || grid.cells.size === 0) return
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
-    for (const key of grid.cells) {
-      const [x, y] = key.split(':').map(Number)
-      minX = Math.min(minX, x)
-      maxX = Math.max(maxX, x + 1)
-      minY = Math.min(minY, y)
-      maxY = Math.max(maxY, y + 1)
+    if (!map) return
+    map.setMinZoom(MIN_ZOOM)
+    map.setMaxZoom(MAX_ZOOM)
+    for (const layer of map.getStyle().layers ?? []) {
+      if (layer.type === 'symbol') map.setLayoutProperty(layer.id, 'visibility', 'none')
     }
-    map.fitBounds(
-      [
-        [minX * grid.dLng, minY * grid.dLat],
-        [maxX * grid.dLng, maxY * grid.dLat],
-      ],
-      { padding: 40, maxZoom: 16.5, duration: 0 },
-    )
-    map.setMinZoom(12)
-    map.setMaxZoom(18)
-  }, [map, grid])
+    const last = points[points.length - 1]
+    if (last) map.jumpTo({ center: [last.lng, last.lat], zoom: 17.5 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map])
 
   useEffect(() => {
     if (!map) return
@@ -150,7 +145,7 @@ export function FogMap({ points, onClose }: { points: Point[]; onClose: () => vo
       </div>
       <div className="relative flex-1 min-h-0">
         <div className="absolute inset-0">
-          <WalkMap markers={[]} className="h-full border-cemento shadow-none" onReady={setMap} zoom={15} />
+          <WalkMap markers={[]} className="h-full border-cemento shadow-none" onReady={setMap} zoom={17.5} />
         </div>
         {/* z-[1]: sopra la mappa ma sotto i controlli MapLibre (z-index 2), così l'attribuzione resta leggibile */}
         <canvas ref={canvasRef} className="absolute inset-[3px] z-[1] w-[calc(100%-6px)] h-[calc(100%-6px)] pointer-events-none" aria-hidden />
@@ -160,7 +155,7 @@ export function FogMap({ points, onClose }: { points: Point[]; onClose: () => vo
           </p>
         )}
       </div>
-      <p className="text-sm mt-3">Si scopre solo dove avete già segnato un punto. Niente percorso, niente posizione dal vivo.</p>
+      <p className="text-sm mt-3">Si scopre solo un fazzoletto attorno a ogni punto già segnato. Niente percorso, niente nomi di vie, niente posizione dal vivo.</p>
     </div>
   )
 }

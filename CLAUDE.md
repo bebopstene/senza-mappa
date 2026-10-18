@@ -3,7 +3,7 @@
 Web app (PWA) per camminate urbane senza navigatore con soste nei "bangla". Il PRD completo è in `docs/PRD.md`.
 
 ## Regole di prodotto da non rompere
-- **Modalità alla cieca (R4)**: prima della chiusura nessuna schermata mostra mappe, coordinate o direzioni. Eccezioni volute: "Mi sono perso" (R20), 30 secondi, e la **mappa nella nebbia** (`src/components/FogMap.tsx`), che scopre la città a quadrati da 120 m solo attorno ai punti già segnati, senza percorso, segnaposto né GPS dal vivo; si spegne dal menu. La sezione I POSTI nasconde la mappa durante una camminata.
+- **Modalità alla cieca (R4)**: prima della chiusura nessuna schermata mostra mappe, coordinate o direzioni. Eccezioni volute: "Mi sono perso" (R20), 30 secondi, e la **mappa nella nebbia** (`src/components/FogMap.tsx`), che scopre solo il quadrato da 50 m di ogni punto già segnato, con zoom bloccato alto (≥ 17) e senza nomi di vie, percorso, segnaposto né GPS dal vivo: non deve servire a orientarsi; si spegne dal menu. La sezione I POSTI nasconde la mappa durante una camminata.
 - **Niente tracciamento continuo**: la posizione si legge solo al tap o quando l'app torna in primo piano (checkpoint automatico R27).
 - **Birre = 0 punti**: si contano solo nel riepilogo, mai nel punteggio né in classifiche.
 - **Ogni punto va su IndexedDB prima della conferma a schermo (R6)**.

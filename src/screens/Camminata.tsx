@@ -516,7 +516,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
                   {nebbia ? 'SÌ' : 'NO'}
                 </button>
               </div>
-              <p className="text-sm mt-2">Scopre la città a quadrati attorno ai punti segnati. Niente percorso, niente posizione dal vivo.</p>
+              <p className="text-sm mt-2">Scopre solo un quadratino da 50 m per ogni punto segnato, molto da vicino. Niente percorso, niente nomi di vie.</p>
             </div>
             <div className="bordo border-cemento p-3">
               <div className="etichetta text-sm mb-2">

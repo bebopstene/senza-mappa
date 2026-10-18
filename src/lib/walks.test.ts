@@ -145,3 +145,21 @@ describe('soste bagno e posti salvati', () => {
     expect(await db.bangla.get(saved.id)).toBeUndefined()
   })
 })
+
+describe('eliminare camminate', () => {
+  it('elimina in blocco, salta quella in corso e pulisce i posti non salvati', async () => {
+    const { deleteWalks, checkInBagno, addSavedBagno } = await import('./walks')
+    const w1 = await startWalk(['A', 'B'], 'PROVA 1', fix(45.48))
+    await checkInBangla(w1.id, fix(45.483))
+    await checkInBagno(w1.id, fix(45.485))
+    const salvato = await addSavedBagno({ nome: 'Tenuto', lat: 45.49, lng: 9.19, gratis: true })
+    await checkInBagno(w1.id, fix(45.49))
+    await closeWalk(w1.id, null)
+    const w2 = await startWalk(['A', 'B'], 'IN CORSO', fix(45.48))
+    await deleteWalks([w1.id, w2.id])
+    expect(await db.walks.get(w1.id)).toBeUndefined()
+    expect(await db.walks.get(w2.id)).toBeTruthy() // la camminata in corso non si cancella
+    expect(await db.bangla.count()).toBe(0)
+    expect((await db.bagni.toArray()).map((b) => b.id)).toEqual([salvato.id])
+  })
+})

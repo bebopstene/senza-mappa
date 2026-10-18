@@ -3,7 +3,8 @@ import { go } from '../router'
 import { useBundle } from '../components/useBundle'
 import { RevealView } from '../components/RevealView'
 import { BackLink, Btn, ScreenTitle, Sheet } from '../components/ui'
-import { computeWalkRoute, exportWalkJson } from '../lib/walks'
+import { computeWalkRoute, deleteWalk, exportWalkJson } from '../lib/walks'
+import { ConfirmDelete } from './Archivio'
 import { encodeBundle, shareUrl } from '../lib/share'
 
 export default function Rivela({ walkId }: { walkId: string }) {
@@ -11,6 +12,7 @@ export default function Rivela({ walkId }: { walkId: string }) {
   const [revealed, setRevealed] = useState<boolean | null>(null)
   const [calc, setCalc] = useState<'idle' | 'running' | 'offline' | 'error'>('idle')
   const [share, setShare] = useState(false)
+  const [elimina, setElimina] = useState(false)
 
   useEffect(() => {
     if (bundle && revealed === null) setRevealed(bundle.walk.premiazioneFatta)
@@ -137,8 +139,22 @@ export default function Rivela({ walkId }: { walkId: string }) {
         >
           ESPORTA JSON (METRICHE)
         </button>
+        <button type="button" className="etichetta text-sm underline min-h-[44px]" onClick={() => setElimina(true)} data-testid="rivela-elimina">
+          ELIMINA QUESTA CAMMINATA
+        </button>
       </div>
       {share && <ShareSheet bundle={bundle} onClose={() => setShare(false)} />}
+      {elimina && (
+        <ConfirmDelete
+          names={[walk.nome]}
+          onCancel={() => setElimina(false)}
+          onConfirm={() => {
+            const id = walk.id
+            go('archivio', true)
+            void deleteWalk(id)
+          }}
+        />
+      )}
     </main>
   )
 }

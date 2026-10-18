@@ -422,16 +422,31 @@ export async function renameWalk(walkId: string, nome: string) {
   await db.walks.update(walkId, { nome: nome.trim().slice(0, 60) || 'CAMMINATA', updatedAt: now() })
 }
 
+/** elimina la camminata e quello che era solo suo: bangla e bagni non salvati a mano e mai visti altrove */
 export async function deleteWalk(walkId: string) {
-  await db.transaction('rw', [db.walks, db.participants, db.points, db.bangla, db.drinks, db.reviews, db.awards], async () => {
-    const banglaIds = (await db.points.where({ walkId }).toArray()).map((p) => p.banglaId).filter((x): x is string => !!x)
-    await db.points.where({ walkId }).delete()
-    await db.participants.where({ walkId }).delete()
-    await db.drinks.where({ walkId }).delete()
-    await db.reviews.where({ walkId }).delete()
-    await db.awards.where({ walkId }).delete()
-    await db.walks.delete(walkId)
-    for (const id of new Set(banglaIds)) await removeBanglaIfOrphan(id)
+  await deleteWalks([walkId])
+}
+
+export async function deleteWalks(walkIds: string[]) {
+  await db.transaction('rw', [db.walks, db.participants, db.points, db.bangla, db.bagni, db.drinks, db.reviews, db.awards], async () => {
+    const banglaIds = new Set<string>()
+    const bagnoIds = new Set<string>()
+    for (const walkId of walkIds) {
+      const walk = await db.walks.get(walkId)
+      if (!walk || walk.stato === 'attiva') continue // quella in corso si chiude, non si cancella
+      for (const p of await db.points.where({ walkId }).toArray()) {
+        if (p.banglaId) banglaIds.add(p.banglaId)
+        if (p.bagnoId) bagnoIds.add(p.bagnoId)
+      }
+      await db.points.where({ walkId }).delete()
+      await db.participants.where({ walkId }).delete()
+      await db.drinks.where({ walkId }).delete()
+      await db.reviews.where({ walkId }).delete()
+      await db.awards.where({ walkId }).delete()
+      await db.walks.delete(walkId)
+    }
+    for (const id of banglaIds) await removeBanglaIfOrphan(id)
+    for (const id of bagnoIds) await removeBagnoIfOrphan(id)
   })
 }
 

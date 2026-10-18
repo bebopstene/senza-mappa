@@ -5,6 +5,7 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import type { AwardCategory, PointType, Walk } from '../db/schema'
 import type { WalkBundle } from './score'
+import { isNative, PUBLIC_URL } from './platform'
 
 interface Snapshot {
   v: 1
@@ -166,5 +167,6 @@ export function decodeBundle(data: string): WalkBundle | null {
 }
 
 export function shareUrl(encoded: string): string {
-  return `${location.origin}/#/v/${encoded}`
+  // nell'app l'origine è capacitor://localhost: il link deve puntare al sito
+  return `${isNative ? PUBLIC_URL : location.origin}/#/v/${encoded}`
 }

@@ -1,8 +1,9 @@
 // Feedback al tap e promemoria (R9, R21). iOS non supporta la vibrazione dal web:
-// lì si usano flash a schermo e un suono breve.
+// lì si usano flash a schermo e un suono breve. Nell'app nativa si usa il Taptic Engine.
+import { isNative, nativeKeepAwake, nativeTap, nativeVibrate } from './platform'
 
 export const canVibrate = (): boolean =>
-  typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function' && !isIOS()
+  isNative || (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function' && !isIOS())
 
 export function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false
@@ -11,6 +12,10 @@ export function isIOS(): boolean {
 
 export function vibrate(pattern: number | number[]): boolean {
   if (!canVibrate()) return false
+  if (isNative) {
+    nativeVibrate(pattern)
+    return true
+  }
   try {
     return navigator.vibrate(pattern)
   } catch {
@@ -53,7 +58,8 @@ export function beep(durationMs = 180, freq = 880) {
 
 /** feedback leggero a ogni tap: vibrazione su Android, il flash lo fa il pulsante */
 export function tapFeedback() {
-  vibrate(15)
+  if (isNative) nativeTap()
+  else vibrate(15)
 }
 
 // --- Schermo acceso (Screen Wake Lock API) ---
@@ -61,10 +67,11 @@ export function tapFeedback() {
 let sentinel: WakeLockSentinel | null = null
 let wanted = false
 
-export const wakeLockSupported = () => typeof navigator !== 'undefined' && 'wakeLock' in navigator
+export const wakeLockSupported = () => isNative || (typeof navigator !== 'undefined' && 'wakeLock' in navigator)
 
 export async function setWakeLock(on: boolean): Promise<boolean> {
   wanted = on
+  if (isNative) return nativeKeepAwake(on)
   if (!wakeLockSupported()) return false
   try {
     if (on && !sentinel) {
@@ -85,6 +92,6 @@ export async function setWakeLock(on: boolean): Promise<boolean> {
 // il blocco cade quando la pagina va in background: lo riprendiamo al ritorno
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && wanted && !sentinel) void setWakeLock(true)
+    if (!isNative && document.visibilityState === 'visible' && wanted && !sentinel) void setWakeLock(true)
   })
 }

@@ -1,6 +1,9 @@
 // Posizione e controllo precisione (R7, R27). Nessun tracciamento continuo:
 // la posizione si legge solo al tap o quando l'app torna in primo piano.
 
+import { Geolocation } from '@capacitor/geolocation'
+import { isNative } from './platform'
+
 export interface Fix {
   lat: number
   lng: number
@@ -40,20 +43,20 @@ export function getBestFix(
   const acceptM = opts.acceptM ?? ACCURACY_LIMIT_M
   const startedAt = Date.now()
   return new Promise((resolve, reject) => {
-    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+    if (!isNative && (typeof navigator === 'undefined' || !('geolocation' in navigator))) {
       reject(new GeoError('unsupported', 'Questo browser non dà la posizione'))
       return
     }
     let best: Fix | null = null
     let done = false
-    let watchId: number | null = null
+    let stopWatch: (() => void) | null = null
 
     const finish = (err?: GeoError) => {
       if (done) return
       done = true
       clearTimeout(timer)
       clearTimeout(settle)
-      if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+      stopWatch?.()
       if (best) resolve(best)
       else reject(err ?? new GeoError('timeout', 'Il GPS non risponde'))
     }
@@ -64,31 +67,43 @@ export function getBestFix(
       if (best && best.accuracy <= acceptM) finish()
     }, settleMs)
 
-    watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const fix: Fix = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: Math.round(pos.coords.accuracy),
-          at: Date.now(),
+    const onFix = (lat: number, lng: number, accuracy: number) => {
+      const fix: Fix = { lat, lng, accuracy: Math.round(accuracy), at: Date.now() }
+      if (!best || fix.accuracy < best.accuracy) {
+        best = fix
+        opts.onProgress?.(best)
+      }
+      if (fix.accuracy <= goodEnough) finish()
+      else if (Date.now() - startedAt >= settleMs && fix.accuracy <= acceptM) finish()
+    }
+
+    if (isNative) {
+      // app iOS: plugin nativo, un solo permesso di sistema ("Mentre usi l'app")
+      Geolocation.watchPosition({ enableHighAccuracy: true, maximumAge: 0, timeout: maxMs }, (pos, err) => {
+        if (err) {
+          if (/denied|permission|not authorized/i.test(String(err.message ?? err))) finish(new GeoError('denied', 'Permesso posizione negato'))
+          return
         }
-        if (!best || fix.accuracy < best.accuracy) {
-          best = fix
-          opts.onProgress?.(best)
-        }
-        if (fix.accuracy <= goodEnough) finish()
-        else if (Date.now() - startedAt >= settleMs && fix.accuracy <= acceptM) finish()
-      },
+        if (pos) onFix(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy)
+      })
+        .then((id) => {
+          const stop = () => void Geolocation.clearWatch({ id }).catch(() => {})
+          if (done) stop()
+          else stopWatch = stop
+        })
+        .catch((e) => finish(/denied|permission/i.test(String(e?.message ?? e)) ? new GeoError('denied', 'Permesso posizione negato') : undefined))
+      return
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => onFix(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
       (err) => {
         if (err.code === err.PERMISSION_DENIED) finish(new GeoError('denied', 'Permesso posizione negato'))
-        else if (err.code === err.TIMEOUT) {
-          // watchPosition può dare timeout parziali: continuiamo fino a maxMs
-        } else if (!best) {
-          // POSITION_UNAVAILABLE: aspettiamo, magari si riaggancia entro maxMs
-        }
+        // TIMEOUT e POSITION_UNAVAILABLE: continuiamo fino a maxMs, magari si riaggancia
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: maxMs },
     )
+    stopWatch = () => navigator.geolocation.clearWatch(watchId)
   })
 }
 

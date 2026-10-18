@@ -3,6 +3,7 @@
 
 import type { LngLat } from '../db/schema'
 import { distanceM, lineLengthM } from './geo'
+import { API_BASE } from './platform'
 
 export const CHUNK_SIZE = 25
 
@@ -39,7 +40,7 @@ async function routeChunk(coords: LngLat[]): Promise<{ coordinates: LngLat[]; di
   const ctrl = new AbortController()
   const t = setTimeout(() => ctrl.abort(), 20_000)
   try {
-    const res = await fetch('/api/route', {
+    const res = await fetch(`${API_BASE}/api/route`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ coordinates: coords }),

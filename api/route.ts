@@ -62,7 +62,7 @@ function allowedOrigin(request: Request): boolean {
     const self = new URL(request.url).hostname
     return (
       host === self ||
-      host === 'localhost' ||
+      host === 'localhost' || // anche capacitor://localhost, l'app iOS
       host === '127.0.0.1' ||
       host === 'senza-mappa.vercel.app' ||
       /^senza-mappa-[a-z0-9-]+\.vercel\.app$/.test(host)
@@ -121,7 +121,32 @@ async function viaOsrm(coords: LngLat[]) {
   return { coordinates: r.geometry.coordinates, distance: r.distance, provider: 'osrm' }
 }
 
+/** l'app iOS chiama da capacitor://localhost: serve il permesso CORS esplicito */
+function withCors(request: Request, res: Response): Response {
+  const origin = request.headers.get('origin')
+  if (!origin || !allowedOrigin(request)) return res
+  try {
+    if (new URL(origin).hostname === new URL(request.url).hostname) return res
+  } catch {
+    return res
+  }
+  res.headers.set('access-control-allow-origin', origin)
+  res.headers.set('access-control-allow-methods', 'GET, POST, OPTIONS')
+  res.headers.set('access-control-allow-headers', 'content-type')
+  res.headers.set('access-control-max-age', '86400')
+  res.headers.append('vary', 'Origin')
+  return res
+}
+
+export function OPTIONS(request: Request): Response {
+  return withCors(request, new Response(null, { status: allowedOrigin(request) ? 204 : 403 }))
+}
+
 export async function POST(request: Request): Promise<Response> {
+  return withCors(request, await handlePost(request))
+}
+
+async function handlePost(request: Request): Promise<Response> {
   if (!allowedOrigin(request)) return json({ error: 'origine non ammessa' }, 403)
   if (!(request.headers.get('content-type') ?? '').includes('application/json')) return json({ error: 'serve application/json' }, 415)
   if (rateLimited(request)) return json({ error: 'troppe richieste, riprova tra un minuto' }, 429)

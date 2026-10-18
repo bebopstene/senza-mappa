@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, getSetting } from './db/schema'
 import { go, useRoute } from './router'
 import { computePendingRoutes } from './lib/walks'
+import { nativeStatusBar } from './lib/platform'
 import Onboarding from './screens/Onboarding'
 import Home from './screens/Home'
 import Squadra from './screens/Squadra'
@@ -33,6 +34,11 @@ export default function App() {
     window.addEventListener('online', run)
     return () => window.removeEventListener('online', run)
   }, [shared])
+
+  // app iOS: la barra di stato segue il colore della schermata
+  useEffect(() => {
+    nativeStatusBar(route[0] === 'camminata')
+  }, [route])
 
   // ripresa camminata (R17): con una camminata attiva si torna sempre lì
   useEffect(() => {

@@ -6,6 +6,7 @@ import { BackLink, Btn, ScreenTitle, Sheet } from '../components/ui'
 import { computeWalkRoute, deleteWalk, exportWalkJson } from '../lib/walks'
 import { ConfirmDelete } from './Archivio'
 import { encodeBundle, shareUrl } from '../lib/share'
+import { isNative, nativeShareUrl } from '../lib/platform'
 
 export default function Rivela({ walkId }: { walkId: string }) {
   const bundle = useBundle(walkId)
@@ -165,6 +166,9 @@ function ShareSheet({ bundle, onClose }: { bundle: NonNullable<ReturnType<typeof
   const url = shareUrl(encodeBundle(bundle, { nomiNegozi: nomi }))
 
   const send = async () => {
+    if (isNative) {
+      if (await nativeShareUrl(url, bundle.walk.nome)) return
+    }
     if (navigator.share) {
       try {
         await navigator.share({ title: bundle.walk.nome, url })

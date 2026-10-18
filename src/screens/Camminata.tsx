@@ -23,6 +23,7 @@ import {
 import { nearbyShops, type ShopSuggestion } from '../lib/overpass'
 import { beep, canVibrate, setWakeLock, unlockAudio, vibrate, wakeLockSupported } from '../lib/feedback'
 import { useCapture } from '../components/useCapture'
+import { askNotificationPermission, cancelCheckpointReminders, isNative, scheduleCheckpointReminders } from '../lib/platform'
 import { Btn, Counter, HoldButton, MugIcon, FlagIcon, PersonIcon, WcIcon, Sheet, Stamp, UndoBar, VoteBlocks, useStamp } from '../components/ui'
 import { WalkMap } from '../components/WalkMap'
 import { FogMap } from '../components/FogMap'
@@ -138,6 +139,15 @@ export default function Camminata({ walk }: { walk: Walk }) {
       }
     }
   }, [now, reminderMin, points, walk.startedAt])
+
+  // app iOS: i promemoria arrivano come notifiche anche a schermo spento, contando dall'ultimo punto
+  useEffect(() => {
+    if (isNative) void askNotificationPermission()
+  }, [])
+  const lastPointAt = points.length ? points[points.length - 1].createdAt : walk.startedAt
+  useEffect(() => {
+    if (isNative) void scheduleCheckpointReminders(lastPointAt, reminderMin)
+  }, [lastPointAt, reminderMin])
 
   // --- checkpoint automatico alla riapertura (R27) ---
   const tryAutoCheckpoint = useCallback(async () => {
@@ -257,6 +267,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
     } catch {
       fix = null
     }
+    void cancelCheckpointReminders()
     try {
       await closeWalk(walk.id, fix)
     } catch {
@@ -520,7 +531,7 @@ export default function Camminata({ walk }: { walk: Walk }) {
             </div>
             <div className="bordo border-cemento p-3">
               <div className="etichetta text-sm mb-2">
-                PROMEMORIA CHECKPOINT {canVibrate() ? '(VIBRA)' : '(FLASH + SUONO)'}
+                PROMEMORIA CHECKPOINT {isNative ? '(VIBRA + NOTIFICA)' : canVibrate() ? '(VIBRA)' : '(FLASH + SUONO)'}
               </div>
               <div className="grid grid-cols-5 gap-2">
                 {[0, 5, 10, 15, 20].map((m) => (

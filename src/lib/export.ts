@@ -2,6 +2,7 @@
 import type { Map as MlMap } from 'maplibre-gl'
 import type { LngLat, PointType } from '../db/schema'
 import { computeStats, formatDuration, formatKm, type WalkBundle } from './score'
+import { isNative, nativeShareFile } from './platform'
 
 const C = {
   cemento: '#D6D3CB',
@@ -96,6 +97,7 @@ ${trkpts.join('\n')}
 
 /** condivide il file (su iPhone finisce in Foto/File) o, se non si può, lo scarica */
 export async function saveFile(blob: Blob, filename: string): Promise<'shared' | 'downloaded' | 'cancelled'> {
+  if (isNative) return nativeShareFile(blob, filename)
   const file = new File([blob], filename, { type: blob.type })
   if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
     try {

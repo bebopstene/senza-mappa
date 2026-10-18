@@ -7,6 +7,7 @@ export type PointType =
   | 'checkpoint'
   | 'checkpoint-auto'
   | 'passante'
+  | 'bagno'
   | 'perso'
   | 'bangla'
   | 'arrivo'
@@ -52,6 +53,8 @@ export interface Point {
   banglaId: string | null
   /** chi ha chiesto al passante */
   participantId: string | null
+  /** posto bagno di una sosta bagno */
+  bagnoId?: string | null
   nota: string | null
   updatedAt: number
 }
@@ -62,6 +65,24 @@ export interface Bangla {
   osmId: string | null
   lat: number
   lng: number
+  /** salvato nella sezione Posti: resta anche senza check-in */
+  salvato?: boolean
+  /** lista dei bangla da provare */
+  daProvare?: boolean
+  updatedAt: number
+}
+
+/** posto dove si può andare in bagno (sosta bagno o aggiunto a mano) */
+export interface Bagno {
+  id: string
+  nome: string
+  lat: number
+  lng: number
+  /** true gratis, false a pagamento o con consumazione, null non si sa */
+  gratis: boolean | null
+  nota: string | null
+  /** aggiunto a mano nella sezione Posti */
+  salvato?: boolean
   updatedAt: number
 }
 
@@ -103,6 +124,7 @@ export class SenzaMappaDB extends Dexie {
   participants!: EntityTable<Participant, 'id'>
   points!: EntityTable<Point, 'id'>
   bangla!: EntityTable<Bangla, 'id'>
+  bagni!: EntityTable<Bagno, 'id'>
   drinks!: EntityTable<Drink, 'id'>
   reviews!: EntityTable<Review, 'id'>
   awards!: EntityTable<Award, 'id'>
@@ -119,6 +141,11 @@ export class SenzaMappaDB extends Dexie {
       reviews: 'id, banglaId, walkId, [walkId+banglaId]',
       awards: 'id, walkId, [walkId+categoria]',
       settings: 'key',
+    })
+    // v2: soste bagno e posti salvati senza camminata
+    this.version(2).stores({
+      points: 'id, walkId, createdAt, banglaId, bagnoId, [walkId+createdAt]',
+      bagni: 'id',
     })
   }
 }

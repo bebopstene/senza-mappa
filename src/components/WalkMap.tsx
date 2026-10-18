@@ -10,7 +10,7 @@ export interface MapMarker {
   id: string
   lat: number
   lng: number
-  kind: 'partenza' | 'arrivo' | 'checkpoint' | 'passante' | 'perso' | 'bangla' | 'qui' | 'archivio'
+  kind: 'partenza' | 'arrivo' | 'checkpoint' | 'passante' | 'perso' | 'bangla' | 'bagno' | 'da-provare' | 'qui' | 'archivio'
   label?: string
   title?: string
 }
@@ -32,6 +32,8 @@ export function markersFromPoints(points: Point[], bangla: Bangla[]): MapMarker[
       out.push({ id: p.id, lat: p.lat, lng: p.lng, kind: 'arrivo', label: 'A', title: 'Arrivo' })
     } else if (p.tipo === 'passante') {
       out.push({ id: p.id, lat: p.lat, lng: p.lng, kind: 'passante', label: '?', title: 'Passante' })
+    } else if (p.tipo === 'bagno') {
+      out.push({ id: p.id, lat: p.lat, lng: p.lng, kind: 'bagno', label: 'WC', title: 'Sosta bagno' })
     } else if (p.tipo === 'perso') {
       out.push({ id: p.id, lat: p.lat, lng: p.lng, kind: 'perso', label: 'PERSI', title: 'Mi sono perso' })
     } else {
@@ -123,8 +125,14 @@ function markerEl(m: MapMarker, editable: boolean): HTMLElement {
     case 'qui':
       el.innerHTML = `<div style="width:26px;height:26px;${base}background:#D3121D;box-shadow:0 0 0 6px rgba(211,18,29,.25)"></div>`
       break
+    case 'bagno':
+      el.innerHTML = `<div style="min-width:34px;height:26px;padding:0 4px;${base}background:#2E4B2F;color:#fff;font-size:12px;box-shadow:3px 3px 0 #111">WC</div>`
+      break
+    case 'da-provare':
+      el.innerHTML = `<div style="width:38px;height:38px;${base}border-style:dashed;background:#fff;box-shadow:3px 3px 0 #111;opacity:.95">${MUG_SVG}</div>`
+      break
     case 'archivio':
-      el.innerHTML = `<div style="width:38px;height:38px;${base}background:#2E4B2F;box-shadow:3px 3px 0 #111">${MUG_SVG}</div>`
+      el.innerHTML = `<div style="width:38px;height:38px;${base}background:#D6D3CB;box-shadow:3px 3px 0 #111">${MUG_SVG}</div>`
       break
     default:
       el.innerHTML = `<div style="width:14px;height:14px;border:3px solid #111;background:#fff"></div>`
@@ -143,6 +151,7 @@ export function WalkMap({
   interactive = true,
   zoom,
   onReady,
+  onMapClick,
 }: {
   route?: LngLat[] | null
   optimal?: LngLat[] | null
@@ -155,7 +164,11 @@ export function WalkMap({
   zoom?: number
   /** la mappa è pronta: serve all'export dell'immagine */
   onReady?: (map: MlMap) => void
+  /** tap sulla mappa (non su un segnaposto) */
+  onMapClick?: (lat: number, lng: number) => void
 }) {
+  const clickRef = useRef(onMapClick)
+  clickRef.current = onMapClick
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const markerRefs = useRef<Marker[]>([])
@@ -183,6 +196,7 @@ export function WalkMap({
           pitchWithRotate: false,
         })
         map.touchZoomRotate?.disableRotation()
+        map.on('click', (e) => clickRef.current?.(e.lngLat.lat, e.lngLat.lng))
         map.on('load', () => {
           if (cancelled) return
           desaturate(map!)
@@ -272,7 +286,11 @@ export function WalkMap({
     markerRefs.current.forEach((m) => m.remove())
     markerRefs.current = markers.map((m) => {
       const el = markerEl(m, editable)
-      if (onMarkerClick) el.addEventListener('click', () => onMarkerClick(m.id))
+      if (onMarkerClick)
+        el.addEventListener('click', (e) => {
+          e.stopPropagation()
+          onMarkerClick(m.id)
+        })
       const mk = new lib.Marker({ element: el, draggable: editable && m.kind !== 'qui' && m.kind !== 'archivio' })
         .setLngLat([m.lng, m.lat])
         .addTo(map)

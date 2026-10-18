@@ -23,6 +23,7 @@ const TIPI: Record<PointType, string> = {
   checkpoint: 'CHECKPOINT',
   'checkpoint-auto': 'CHECKPOINT AUTO',
   passante: 'PASSANTE',
+  bagno: 'SOSTA BAGNO',
   perso: 'MI SONO PERSO',
   bangla: 'BANGLA',
   arrivo: 'ARRIVO',
@@ -88,6 +89,7 @@ export default function Modifica({ walkId }: { walkId: string }) {
                 <div className="etichetta text-sm">
                   {i + 1}. {TIPI[p.tipo]}
                   {p.banglaId && ` · ${bundle.bangla.find((b) => b.id === p.banglaId)?.nome || ''}`}
+                  {p.bagnoId && ` · ${bundle.bagni?.find((b) => b.id === p.bagnoId)?.nome || ''}`}
                 </div>
                 <div className="text-xs mt-1">
                   {new Date(p.createdAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} · ±{p.accuracy} M

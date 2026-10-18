@@ -6,6 +6,7 @@ import {
   setSetting,
   getSetting,
   type AwardCategory,
+  type Bagno,
   type Bangla,
   type LngLat,
   type Point,
@@ -143,7 +144,8 @@ export async function nameBangla(pointId: string, nome: string, osmId: string | 
     const clean = nome.trim().slice(0, 60)
     const altroNome = !!current.nome && clean.toLocaleUpperCase('it') !== current.nome.toLocaleUpperCase('it')
     const altroOsm = !!osmId && !!current.osmId && osmId !== current.osmId
-    const usatoAltrove = (await db.points.where('banglaId').equals(current.id).count()) > 1
+    // un bangla salvato in lista (es. "da provare") conta come già esistente anche senza altri check-in
+    const usatoAltrove = !!current.salvato || (await db.points.where('banglaId').equals(current.id).count()) > 1
     if (usatoAltrove && (altroNome || altroOsm)) {
       const nuovo: Bangla = { id: uuid(), nome: clean, osmId, lat: pos?.lat ?? point.lat, lng: pos?.lng ?? point.lng, updatedAt: t }
       await db.bangla.add(nuovo)
@@ -163,16 +165,26 @@ export async function nameBangla(pointId: string, nome: string, osmId: string | 
 }
 
 async function removeBanglaIfOrphan(banglaId: string) {
+  const b = await db.bangla.get(banglaId)
+  if (!b || b.salvato) return
   const used = await db.points.where('banglaId').equals(banglaId).count()
   if (used === 0) await db.bangla.delete(banglaId)
 }
 
+async function removeBagnoIfOrphan(bagnoId: string) {
+  const b = await db.bagni.get(bagnoId)
+  if (!b || b.salvato) return
+  const used = await db.points.where('bagnoId').equals(bagnoId).count()
+  if (used === 0) await db.bagni.delete(bagnoId)
+}
+
 /** elimina un punto; per un bangla toglie anche birre e voto di questa camminata se non ci sono altri check-in lì */
 export async function deletePoint(pointId: string): Promise<void> {
-  await db.transaction('rw', [db.points, db.bangla, db.drinks, db.reviews, db.awards], async () => {
+  await db.transaction('rw', [db.points, db.bangla, db.bagni, db.drinks, db.reviews, db.awards], async () => {
     const p = await db.points.get(pointId)
     if (!p) return
     await db.points.delete(pointId)
+    if (p.bagnoId) await removeBagnoIfOrphan(p.bagnoId)
     if (p.banglaId) {
       const sameWalk = await db.points.where({ walkId: p.walkId }).filter((x) => x.banglaId === p.banglaId).count()
       if (sameWalk === 0) {
@@ -181,6 +193,87 @@ export async function deletePoint(pointId: string): Promise<void> {
         await db.awards.where({ walkId: p.walkId }).filter((a) => a.banglaId === p.banglaId).delete()
       }
       await removeBanglaIfOrphan(p.banglaId)
+    }
+  })
+}
+
+/** bagno salvato più vicino entro ~40 m, se esiste */
+export async function findNearbyBagno(fix: { lat: number; lng: number }): Promise<Bagno | undefined> {
+  let best: Bagno | undefined
+  let bestD = Infinity
+  for (const b of await db.bagni.toArray()) {
+    const d = distanceM(fix, b)
+    if (d <= SAME_BANGLA_RADIUS_M && d < bestD) {
+      best = b
+      bestD = d
+    }
+  }
+  return best
+}
+
+/** sosta bagno: salva il punto e il posto (nuovo o riconosciuto entro 40 m) */
+export async function checkInBagno(walkId: string, fix: Fix): Promise<{ point: Point; bagno: Bagno; giaVisto: boolean }> {
+  return db.transaction('rw', [db.bagni, db.points], async () => {
+    const t = now()
+    let bagno = await findNearbyBagno(fix)
+    const giaVisto = !!bagno
+    if (!bagno) {
+      bagno = { id: uuid(), nome: '', lat: fix.lat, lng: fix.lng, gratis: null, nota: null, updatedAt: t }
+      await db.bagni.add(bagno)
+    }
+    const point = makePoint(walkId, 'bagno', fix, t, { bagnoId: bagno.id })
+    await db.points.add(point)
+    return { point, bagno, giaVisto }
+  })
+}
+
+export async function updateBagno(id: string, patch: Partial<Pick<Bagno, 'nome' | 'gratis' | 'nota' | 'lat' | 'lng'>>) {
+  const clean = { ...patch }
+  if (clean.nome !== undefined) clean.nome = clean.nome.trim().slice(0, 60)
+  if (clean.nota !== undefined && clean.nota !== null) clean.nota = clean.nota.trim().slice(0, 140) || null
+  await db.bagni.update(id, { ...clean, updatedAt: now() })
+}
+
+// --- Posti salvati senza camminata ---
+
+export async function addSavedBangla(p: { nome: string; lat: number; lng: number; daProvare: boolean }): Promise<Bangla> {
+  const b: Bangla = {
+    id: uuid(),
+    nome: p.nome.trim().slice(0, 60),
+    osmId: null,
+    lat: p.lat,
+    lng: p.lng,
+    salvato: true,
+    daProvare: p.daProvare,
+    updatedAt: now(),
+  }
+  await db.bangla.add(b)
+  return b
+}
+
+export async function addSavedBagno(p: { nome: string; lat: number; lng: number; gratis: boolean | null }): Promise<Bagno> {
+  const b: Bagno = { id: uuid(), nome: p.nome.trim().slice(0, 60), lat: p.lat, lng: p.lng, gratis: p.gratis, nota: null, salvato: true, updatedAt: now() }
+  await db.bagni.add(b)
+  return b
+}
+
+export async function updateBangla(id: string, patch: Partial<Pick<Bangla, 'nome' | 'daProvare' | 'lat' | 'lng'>>) {
+  const clean = { ...patch }
+  if (clean.nome !== undefined) clean.nome = clean.nome.trim().slice(0, 60)
+  await db.bangla.update(id, { ...clean, salvato: true, updatedAt: now() })
+}
+
+/** toglie un posto dalla lista. Un bangla con check-in resta (fa parte delle camminate), solo senza "da provare". */
+export async function removeSavedPlace(kind: 'bangla' | 'bagno', id: string) {
+  await db.transaction('rw', [db.bangla, db.bagni, db.points], async () => {
+    if (kind === 'bangla') {
+      const visits = await db.points.where('banglaId').equals(id).count()
+      if (visits > 0) await db.bangla.update(id, { salvato: false, daProvare: false, updatedAt: now() })
+      else await db.bangla.delete(id)
+    } else {
+      // le soste nelle camminate restano, senza il posto collegato
+      await db.points.where('bagnoId').equals(id).modify({ bagnoId: null, updatedAt: now() })
+      await db.bagni.delete(id)
     }
   })
 }
@@ -297,11 +390,14 @@ export async function computePendingRoutes(): Promise<void> {
 export async function movePoint(pointId: string, lat: number, lng: number) {
   const p = await db.points.get(pointId)
   if (!p) return
-  await db.transaction('rw', [db.points, db.walks, db.bangla], async () => {
+  await db.transaction('rw', [db.points, db.walks, db.bangla, db.bagni], async () => {
     await db.points.update(pointId, { lat, lng, updatedAt: now() })
     // se è l'unico check-in di quel bangla, spostiamo anche il bangla in archivio
     if (p.banglaId && (await db.points.where('banglaId').equals(p.banglaId).count()) === 1) {
       await db.bangla.update(p.banglaId, { lat, lng, updatedAt: now() })
+    }
+    if (p.bagnoId && (await db.points.where('bagnoId').equals(p.bagnoId).count()) === 1) {
+      await db.bagni.update(p.bagnoId, { lat, lng, updatedAt: now() })
     }
     await markEdited(p.walkId)
   })
@@ -351,6 +447,8 @@ export async function loadBundle(walkId: string): Promise<WalkBundle | null> {
   ])
   const banglaIds = [...new Set(points.map((p) => p.banglaId).filter((x): x is string => !!x))]
   const bangla = (await db.bangla.bulkGet(banglaIds)).filter((b): b is Bangla => !!b)
+  const bagnoIds = [...new Set(points.map((p) => p.bagnoId).filter((x): x is string => !!x))]
+  const bagni = (await db.bagni.bulkGet(bagnoIds)).filter((b): b is Bagno => !!b)
 
   // "mai visitato prima": nessun check-in in camminate iniziate prima di questa
   const earlierWalkIds = new Set(
@@ -361,7 +459,7 @@ export async function loadBundle(walkId: string): Promise<WalkBundle | null> {
     const visits = await db.points.where('banglaId').equals(id).toArray()
     if (!visits.some((v) => earlierWalkIds.has(v.walkId))) newBanglaIds.push(id)
   }
-  return { walk, participants, points: sortedPoints(points), bangla, drinks, reviews, awards, newBanglaIds }
+  return { walk, participants, points: sortedPoints(points), bangla, bagni, drinks, reviews, awards, newBanglaIds }
 }
 
 /** export JSON per le metriche della v0 */

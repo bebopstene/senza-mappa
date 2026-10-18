@@ -112,6 +112,7 @@ export function RevealView({ bundle, status }: { bundle: WalkBundle; status?: Re
           <li className="flex items-center gap-3"><span className="inline-block w-3 h-3 border-[3px] border-nero bg-schiuma" /> CHECKPOINT</li>
           <li className="flex items-center gap-3"><span className="inline-block w-5 h-5 bg-nero" /> PARTENZA E ARRIVO</li>
           <li className="flex items-center gap-3"><span className="inline-flex w-5 h-5 border-[3px] border-nero bg-schiuma text-[11px] font-bold items-center justify-center">?</span> PASSANTE</li>
+          <li className="flex items-center gap-3"><span className="inline-flex px-1 h-5 border-[3px] border-nero bg-muschio text-schiuma text-[11px] font-bold items-center">WC</span> SOSTA BAGNO</li>
           <li className="flex items-center gap-3"><span className="-rotate-6 border-[3px] border-rosso-linea text-rosso-linea titolo text-xs px-1">PERSI</span> “MI SONO PERSO”</li>
         </ul>
       )}
@@ -123,6 +124,7 @@ export function RevealView({ bundle, status }: { bundle: WalkBundle; status?: Re
           <Stat label="BANGLA" value={stats.bangla} />
           <Stat label="PASSANTI" value={stats.passanti} />
           <Stat label="CHECKPOINT" value={stats.checkpoint} />
+          {stats.bagni > 0 && <Stat label="SOSTE BAGNO" value={stats.bagni} />}
           <Stat label="TRA UNA TAPPA E L’ALTRA" value={stats.mediaTraTappeMs != null ? formatDuration(stats.mediaTraTappeMs) : '—'} />
           {stats.deviazione && (
             <Stat

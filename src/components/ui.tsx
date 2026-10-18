@@ -260,6 +260,15 @@ export function PersonIcon({ size = 24, color = '#111111' }: { size?: number; co
   )
 }
 
+export function WcIcon({ size = 24, color = '#FFFFFF' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden>
+      <rect x="6" y="6" width="52" height="52" fill="none" stroke={color} strokeWidth="6" />
+      <text x="32" y="42" textAnchor="middle" fontSize="24" fontFamily="Archivo Black" fill={color}>WC</text>
+    </svg>
+  )
+}
+
 /** voto a blocchi: 5 quadrati che si riempiono di ambra (non stelle) */
 export function VoteBlocks({ value, onChange, dark }: { value: number | null; onChange: (v: number) => void; dark?: boolean }) {
   return (

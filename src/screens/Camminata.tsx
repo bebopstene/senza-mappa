@@ -1,12 +1,13 @@
 // Schermata di camminata, alla cieca (R4): solo tempo, contatori e pulsanti. Variante notte.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, getSetting, setSetting, type Bangla, type Point, type Walk } from '../db/schema'
+import { db, getSetting, setSetting, type Bagno, type Bangla, type Point, type Walk } from '../db/schema'
 import { go } from '../router'
 import { distanceM, getBestFix, ACCURACY_LIMIT_M, MIN_SCORING_DISTANCE_M } from '../lib/geo'
 import {
   addDrink,
   addPoint,
+  checkInBagno,
   checkInBangla,
   closeWalk,
   computeWalkRoute,
@@ -16,11 +17,12 @@ import {
   removeDrinks,
   setPassanteAsker,
   setVote,
+  updateBagno,
 } from '../lib/walks'
 import { nearbyShops, type ShopSuggestion } from '../lib/overpass'
 import { beep, canVibrate, setWakeLock, unlockAudio, vibrate, wakeLockSupported } from '../lib/feedback'
 import { useCapture } from '../components/useCapture'
-import { Btn, Counter, HoldButton, MugIcon, FlagIcon, PersonIcon, Sheet, Stamp, UndoBar, VoteBlocks, useStamp } from '../components/ui'
+import { Btn, Counter, HoldButton, MugIcon, FlagIcon, PersonIcon, WcIcon, Sheet, Stamp, UndoBar, VoteBlocks, useStamp } from '../components/ui'
 import { WalkMap } from '../components/WalkMap'
 
 const UNDO_MS = 5000
@@ -32,6 +34,7 @@ type Flow =
   | { step: 'birre'; point: Point; banglaId: string }
   | { step: 'voto'; point: Point; banglaId: string }
   | { step: 'passante'; point: Point }
+  | { step: 'bagno'; point: Point; bagno: Bagno; giaVisto: boolean }
   | { step: 'perso-chiedi' }
   | { step: 'perso-umano' }
   | { step: 'perso-mappa'; point: Point; until: number }
@@ -195,6 +198,17 @@ export default function Camminata({ walk }: { walk: Walk }) {
     setFlow({ step: 'nome', point: r.point, bangla: r.bangla, giaVisto: r.giaVisto })
   })
 
+  const doBagno = once(async () => {
+    unlockAudio()
+    lastManual.current = Date.now()
+    const fix = await capture('BAGNO')
+    if (!fix) return
+    const r = await checkInBagno(walk.id, fix)
+    lastReminder.current = Date.now()
+    setUndo(null)
+    setFlow({ step: 'bagno', point: r.point, bagno: r.bagno, giaVisto: r.giaVisto })
+  })
+
   const doPassante = once(async () => {
     unlockAudio()
     lastManual.current = Date.now()
@@ -303,9 +317,14 @@ export default function Camminata({ walk }: { walk: Walk }) {
         <Btn variant="cemento" size="xl" className="w-full shadow-pieno-cemento" onClick={doCheckpoint} disabled={busy} testId="btn-checkpoint">
           <FlagIcon size={40} /> CHECKPOINT
         </Btn>
-        <Btn variant="nero" size="md" className="w-full border-cemento shadow-pieno-cemento" onClick={doPassante} disabled={busy} testId="btn-passante">
-          <PersonIcon size={28} color="#D6D3CB" /> PASSANTE
-        </Btn>
+        <div className="grid grid-cols-2 gap-4">
+          <Btn variant="nero" size="md" className="w-full border-cemento shadow-pieno-cemento" onClick={doPassante} disabled={busy} testId="btn-passante">
+            <PersonIcon size={26} color="#D6D3CB" /> PASSANTE
+          </Btn>
+          <Btn variant="muschio" size="md" className="w-full border-cemento shadow-pieno-cemento" onClick={doBagno} disabled={busy} testId="btn-bagno">
+            <WcIcon size={26} /> BAGNO
+          </Btn>
+        </div>
       </div>
 
       {/* Chiudi in basso, lontano dal pollice, solo con pressione prolungata (R19) */}
@@ -362,6 +381,22 @@ export default function Camminata({ walk }: { walk: Walk }) {
           walkId={walk.id}
           banglaId={flow.banglaId}
           onDone={() => endBanglaFlow(flow.point, flow.banglaId)}
+        />
+      )}
+      {flow?.step === 'bagno' && (
+        <BagnoSheet
+          flow={flow}
+          onCancel={async () => {
+            lastManual.current = Date.now()
+            setFlow(null)
+            await deletePoint(flow.point.id)
+            showStamp('ANNULLATO', 900)
+          }}
+          onDone={() => {
+            setFlow(null)
+            showStamp('BAGNO')
+            offerUndo(flow.point.id, 'SOSTA BAGNO SEGNATA')
+          }}
         />
       )}
       {flow?.step === 'passante' && (
@@ -556,7 +591,7 @@ function NameSheet({
       <div className="grid gap-3 mb-4">
         {known && (
           <Btn variant="muschio" size="md" className="w-full border-cemento justify-start text-left" onClick={onDone} testId="gia-visto">
-            GIÀ VISTO: {flow.bangla.nome}
+            {flow.bangla.daProvare ? 'ERA DA PROVARE' : 'GIÀ VISTO'}: {flow.bangla.nome}
           </Btn>
         )}
         {shops === null && <p className="etichetta text-sm py-3">CERCO NEGOZI VICINI…</p>}
@@ -692,6 +727,63 @@ function VoteSheet({ walkId, banglaId, onDone }: { walkId: string; banglaId: str
       <Btn variant="nero" className="w-full border-cemento mb-3" onClick={onDone} testId="salta">
         SALTA
       </Btn>
+    </Sheet>
+  )
+}
+
+function BagnoSheet({
+  flow,
+  onDone,
+  onCancel,
+}: {
+  flow: { point: Point; bagno: Bagno; giaVisto: boolean }
+  onDone: () => void
+  onCancel: () => void
+}) {
+  const [nome, setNome] = useState('')
+  const save = async (gratis: boolean | null) => {
+    const patch: Parameters<typeof updateBagno>[1] = {}
+    if (gratis !== null) patch.gratis = gratis
+    if (nome.trim()) patch.nome = nome
+    if (Object.keys(patch).length) await updateBagno(flow.bagno.id, patch)
+    onDone()
+  }
+  return (
+    <Sheet title="BAGNO QUI" dark>
+      <div className="sticky top-0 bg-nero pb-3 z-10">
+        <Btn variant="nero" size="md" className="w-full border-cemento shadow-pieno-cemento" onClick={() => void save(null)} testId="salta">
+          SALTA
+        </Btn>
+        <button type="button" className="etichetta text-sm underline text-ambra min-h-[44px] mt-2" onClick={onCancel} data-testid="annulla-bagno">
+          TAP SBAGLIATO? ANNULLA
+        </button>
+      </div>
+      {flow.giaVisto && (
+        <p className="etichetta text-sm mb-4" data-testid="bagno-gia-visto">
+          GIÀ IN MAPPA{flow.bagno.nome ? `: ${flow.bagno.nome}` : ''}
+          {flow.bagno.gratis === true ? ' · GRATIS' : flow.bagno.gratis === false ? ' · A PAGAMENTO' : ''}
+        </p>
+      )}
+      <label htmlFor="nome-bagno" className="etichetta text-sm">DOVE (FACOLTATIVO)</label>
+      <input
+        id="nome-bagno"
+        value={nome}
+        onChange={(e) => setNome(e.target.value)}
+        placeholder={flow.bagno.nome || 'BAR, PARCO, STAZIONE…'}
+        maxLength={60}
+        autoComplete="off"
+        className="bordo border-cemento bg-nero text-cemento w-full min-h-[52px] px-3 etichetta placeholder:text-cemento/50 mt-2 mb-5"
+        data-testid="input-nome-bagno"
+      />
+      <div className="etichetta text-sm mb-3">SI PAGA?</div>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <Btn variant="ambra" size="md" className="border-cemento" onClick={() => void save(true)} testId="bagno-gratis">
+          GRATIS
+        </Btn>
+        <Btn variant="nero" size="md" className="border-cemento shadow-pieno-cemento" onClick={() => void save(false)} testId="bagno-pagamento">
+          A PAGAMENTO
+        </Btn>
+      </div>
     </Sheet>
   )
 }

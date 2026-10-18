@@ -1,7 +1,7 @@
 // Punteggio finale (R26) e statistiche (R12). Non si salva mai: si ricalcola dai dati.
 // Le birre contano solo nel riepilogo: valgono zero punti.
 
-import type { Award, Bangla, Drink, Participant, Point, Review, Walk } from '../db/schema'
+import type { Award, Bagno, Bangla, Drink, Participant, Point, Review, Walk } from '../db/schema'
 import { distanceM, lineLengthM, MIN_SCORING_DISTANCE_M } from './geo'
 
 export const WEIGHTS = {
@@ -19,6 +19,8 @@ export interface WalkBundle {
   participants: Participant[]
   points: Point[]
   bangla: Bangla[]
+  /** posti bagno delle soste di questa camminata */
+  bagni?: Bagno[]
   drinks: Drink[]
   reviews: Review[]
   awards: Award[]
@@ -47,7 +49,9 @@ export interface Score {
   persone: PersonScore[]
 }
 
-export const sortedPoints = (points: Point[]) => [...points].sort((a, b) => a.createdAt - b.createdAt)
+// a parità di orario la partenza va prima e l'arrivo dopo tutto il resto
+const rank = (p: Point) => (p.tipo === 'partenza' ? 0 : p.tipo === 'arrivo' ? 2 : 1)
+export const sortedPoints = (points: Point[]) => [...points].sort((a, b) => a.createdAt - b.createdAt || rank(a) - rank(b))
 
 const isCheckpoint = (p: Point) => p.tipo === 'checkpoint' || p.tipo === 'checkpoint-auto'
 
@@ -118,6 +122,8 @@ export interface Stats {
   durataMs: number
   bangla: number
   passanti: number
+  /** soste bagno: non danno punti, servono a mappare i bagni */
+  bagni: number
   checkpoint: number
   /** tempo medio tra una tappa e l'altra (partenza, bangla, arrivo) */
   mediaTraTappeMs: number | null
@@ -145,6 +151,7 @@ export function computeStats(b: WalkBundle): Stats {
     durataMs: Math.max(0, end - start),
     bangla: visitedBanglaIds(b.points).length,
     passanti: pts.filter((p) => p.tipo === 'passante').length,
+    bagni: pts.filter((p) => p.tipo === 'bagno').length,
     checkpoint: pts.filter(isCheckpoint).length,
     mediaTraTappeMs,
     birrePerPersona: [...b.participants]

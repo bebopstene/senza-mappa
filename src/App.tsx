@@ -12,6 +12,7 @@ import Premiazione from './screens/Premiazione'
 import Punteggio from './screens/Punteggio'
 import Modifica from './screens/Modifica'
 import Archivio from './screens/Archivio'
+import Posti from './screens/Posti'
 import Condivisa from './screens/Condivisa'
 
 export default function App() {
@@ -70,6 +71,8 @@ export default function App() {
       return <Modifica walkId={id} />
     case 'archivio':
       return <Archivio />
+    case 'posti':
+      return <Posti />
     default:
       return <Home />
   }

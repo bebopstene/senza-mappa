@@ -110,3 +110,38 @@ describe('export GPX', () => {
     expect((gpx.match(/<trkpt /g) ?? []).length).toBe(3)
   })
 })
+
+describe('soste bagno e posti salvati', () => {
+  it('una sosta bagno crea il posto, lo riconosce entro 40 m e l’annulla lo toglie', async () => {
+    const { checkInBagno, updateBagno } = await import('./walks')
+    const w = await startWalk(['A', 'B'], '', fix(45.48))
+    const first = await checkInBagno(w.id, fix(45.483))
+    expect(first.giaVisto).toBe(false)
+    await updateBagno(first.bagno.id, { gratis: true, nome: 'Parco' })
+    const again = await checkInBagno(w.id, fix(45.48320))
+    expect(again.giaVisto).toBe(true)
+    expect(again.bagno.id).toBe(first.bagno.id)
+    await deletePoint(again.point.id)
+    expect(await db.bagni.count()).toBe(1) // c'è ancora la prima sosta
+    await deletePoint(first.point.id)
+    expect(await db.bagni.count()).toBe(0)
+    const b = (await loadBundle(w.id))!
+    expect(b.points.every((p) => p.tipo !== 'bagno')).toBe(true)
+  })
+
+  it('un bangla da provare resta in lista anche se il check-in viene annullato', async () => {
+    const { addSavedBangla, removeSavedPlace } = await import('./walks')
+    const saved = await addSavedBangla({ nome: 'Da provare', lat: 45.483, lng: 9.19, daProvare: true })
+    const w = await startWalk(['A', 'B'], '', fix(45.48))
+    const c = await checkInBangla(w.id, fix(45.4831))
+    expect(c.bangla.id).toBe(saved.id)
+    await deletePoint(c.point.id)
+    expect(await db.bangla.get(saved.id)).toBeTruthy()
+    // un nome diverso a un check-in vicino non rinomina quello in lista
+    const c2 = await checkInBangla(w.id, fix(45.4831))
+    await nameBangla(c2.point.id, 'Altro negozio', null)
+    expect((await db.bangla.get(saved.id))!.nome).toBe('Da provare')
+    await removeSavedPlace('bangla', saved.id)
+    expect(await db.bangla.get(saved.id)).toBeUndefined()
+  })
+})

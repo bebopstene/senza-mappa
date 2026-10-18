@@ -12,15 +12,23 @@ export default function Home() {
     <main className="min-h-screen cemento-texture px-4 safe-top safe-bottom flex flex-col">
       <div className="flex items-center justify-between mb-6">
         <MugIcon size={44} />
-        <a href="#/archivio" className="etichetta text-sm underline underline-offset-4 decoration-2 min-h-[44px] flex items-center">
-          ARCHIVIO
-        </a>
+        <nav className="flex gap-5">
+          <a href="#/posti" className="etichetta text-sm underline underline-offset-4 decoration-2 min-h-[44px] flex items-center" data-testid="link-posti">
+            I POSTI
+          </a>
+          <a href="#/archivio" className="etichetta text-sm underline underline-offset-4 decoration-2 min-h-[44px] flex items-center">
+            ARCHIVIO
+          </a>
+        </nav>
       </div>
       <h1 className="titolo text-7xl">SENZA<br />MAPPA</h1>
       <p className="etichetta text-sm mt-3 mb-8">DOVE SIAMO? NON SI SA.</p>
 
-      <Btn variant="ambra" size="xl" className="w-full mb-8" onClick={() => go('squadra')} testId="nuova-camminata">
+      <Btn variant="ambra" size="xl" className="w-full mb-5" onClick={() => go('squadra')} testId="nuova-camminata">
         NUOVA CAMMINATA
+      </Btn>
+      <Btn variant="muschio" size="md" className="w-full mb-8" onClick={() => go('posti')} testId="home-posti">
+        BANGLA E BAGNI SALVATI
       </Btn>
 
       {pending > 0 && (

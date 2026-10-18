@@ -1,7 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import type { Map as MlMap } from 'maplibre-gl'
 import { WalkMap, markersFromPoints } from './WalkMap'
 import { computeStats, formatDuration, formatKm, type WalkBundle } from '../lib/score'
-import { MugIcon } from './ui'
+import { Btn, MugIcon } from './ui'
+import { buildGpx, fileBase, renderPoster, saveFile } from '../lib/export'
 
 export const CATEGORIE = [
   { id: 'preferito', nome: 'BANGLA PREFERITO', desc: 'Il migliore in assoluto della serata' },
@@ -41,6 +43,38 @@ export function RevealView({ bundle, status }: { bundle: WalkBundle; status?: Re
   const markers = useMemo(() => markersFromPoints(bundle.points, bundle.bangla), [bundle.points, bundle.bangla])
   const lista = useMemo(() => banglaOrder(bundle), [bundle])
   const [legend, setLegend] = useState(false)
+  const [map, setMap] = useState<MlMap | null>(null)
+  const [exporting, setExporting] = useState<'img' | 'gpx' | null>(null)
+  const [exportMsg, setExportMsg] = useState<string | null>(null)
+
+  const exportImage = async () => {
+    if (!map || exporting) return
+    setExporting('img')
+    setExportMsg(null)
+    try {
+      const blob = await renderPoster(map, bundle)
+      const r = await saveFile(blob, `${fileBase(bundle)}.png`)
+      setExportMsg(r === 'downloaded' ? 'IMMAGINE SCARICATA' : r === 'shared' ? 'IMMAGINE PRONTA' : null)
+    } catch (e) {
+      console.warn(e)
+      setExportMsg('IMMAGINE NON RIUSCITA, RIPROVA')
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  const exportGpx = async () => {
+    if (exporting) return
+    setExporting('gpx')
+    setExportMsg(null)
+    try {
+      const blob = new Blob([buildGpx(bundle)], { type: 'application/gpx+xml' })
+      const r = await saveFile(blob, `${fileBase(bundle)}.gpx`)
+      setExportMsg(r === 'downloaded' ? 'TRACCIA SCARICATA' : r === 'shared' ? 'TRACCIA PRONTA' : null)
+    } finally {
+      setExporting(null)
+    }
+  }
   const route = bundle.walk.percorso
 
   return (
@@ -52,7 +86,21 @@ export function RevealView({ bundle, status }: { bundle: WalkBundle; status?: Re
         optimal={bundle.walk.percorsoOttimale}
         markers={markers}
         className="h-[58vh] min-h-[320px]"
+        onReady={setMap}
       />
+      <div className="grid grid-cols-2 gap-4 mt-5">
+        <Btn variant="cemento" size="md" onClick={exportImage} disabled={!map || !!exporting} testId="export-img">
+          {exporting === 'img' ? 'PREPARO…' : 'IMMAGINE'}
+        </Btn>
+        <Btn variant="cemento" size="md" onClick={exportGpx} disabled={!!exporting || bundle.points.length < 2} testId="export-gpx">
+          TRACCIA GPX
+        </Btn>
+      </div>
+      {exportMsg && (
+        <p className="etichetta text-sm mt-3" role="status">
+          {exportMsg}
+        </p>
+      )}
       <button type="button" className="etichetta text-xs underline mt-3 min-h-[44px]" onClick={() => setLegend(!legend)} aria-expanded={legend}>
         {legend ? 'NASCONDI LEGENDA' : 'LEGENDA'}
       </button>

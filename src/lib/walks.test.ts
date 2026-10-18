@@ -94,3 +94,19 @@ describe('ciclo completo', () => {
     expect(decodeBundle('spazzatura')).toBeNull()
   })
 })
+
+describe('export GPX', () => {
+  it('produce un GPX valido con tappe e traccia', async () => {
+    const { buildGpx } = await import('./export')
+    const w = await startWalk(['A', 'B'], 'Giro <&> prova', fix(45.48))
+    const { point } = await checkInBangla(w.id, fix(45.483))
+    await nameBangla(point.id, 'Market "Isola"', null)
+    await closeWalk(w.id, fix(45.486))
+    const gpx = buildGpx((await loadBundle(w.id))!)
+    expect(gpx).toContain('<gpx version="1.1"')
+    expect(gpx).toContain('Giro &lt;&amp;&gt; prova')
+    expect(gpx).toContain('BANGLA 1 · Market &quot;Isola&quot;')
+    expect((gpx.match(/<wpt /g) ?? []).length).toBe(3)
+    expect((gpx.match(/<trkpt /g) ?? []).length).toBe(3)
+  })
+})

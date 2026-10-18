@@ -142,6 +142,7 @@ export function WalkMap({
   className = 'h-[60vh]',
   interactive = true,
   zoom,
+  onReady,
 }: {
   route?: LngLat[] | null
   optimal?: LngLat[] | null
@@ -152,6 +153,8 @@ export function WalkMap({
   className?: string
   interactive?: boolean
   zoom?: number
+  /** la mappa è pronta: serve all'export dell'immagine */
+  onReady?: (map: MlMap) => void
 }) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
@@ -184,6 +187,7 @@ export function WalkMap({
           if (cancelled) return
           desaturate(map!)
           setReady(true)
+          onReady?.(map!)
         })
         map.on('error', (e) => {
           console.warn('mappa', e?.error?.message)

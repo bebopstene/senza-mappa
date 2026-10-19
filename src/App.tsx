@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, getSetting } from './db/schema'
 import { go, useRoute } from './router'
 import { computePendingRoutes } from './lib/walks'
-import { nativeStatusBar } from './lib/platform'
+import { liveWalkEnd, nativeStatusBar } from './lib/platform'
 import Onboarding from './screens/Onboarding'
 import Home from './screens/Home'
 import Squadra from './screens/Squadra'
@@ -39,6 +39,11 @@ export default function App() {
   useEffect(() => {
     nativeStatusBar(route[0] === 'camminata')
   }, [route])
+
+  // app iOS: nessuna camminata attiva (chiusa, eliminata) → via la Live Activity rimasta
+  useEffect(() => {
+    if (active === undefined) liveWalkEnd()
+  }, [active])
 
   // ripresa camminata (R17): con una camminata attiva si torna sempre lì
   useEffect(() => {

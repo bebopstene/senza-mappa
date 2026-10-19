@@ -1,6 +1,6 @@
 // Web o app iOS (Capacitor)? Qui stanno le differenze: nel resto del codice si chiamano
 // queste funzioni e non i plugin direttamente, così il sito resta identico a prima.
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import { KeepAwake } from '@capacitor-community/keep-awake'
@@ -129,4 +129,56 @@ export async function nativeShareUrl(url: string, title: string): Promise<boolea
   } catch {
     return false
   }
+}
+
+// --- plugin locale dell'app (ios/App/App/SenzaMappaPlugin.swift): Live Activity e Siri ---
+
+export type ShortcutAction = 'checkpoint' | 'bangla'
+
+interface SenzaMappaPlugin {
+  liveUpdate(o: LiveWalk): Promise<{ active: boolean }>
+  liveEnd(): Promise<void>
+  takeShortcut(): Promise<{ action?: string; at?: number }>
+  addListener(event: 'shortcut', fn: () => void): Promise<PluginListenerHandle>
+}
+
+const SenzaMappa = registerPlugin<SenzaMappaPlugin>('SenzaMappa')
+
+export interface LiveWalk {
+  walkId: string
+  name: string
+  startedAt: number
+  bangla: number
+  checkpoint: number
+  lastPointAt: number
+}
+
+/** Live Activity su schermata di blocco e Dynamic Island: tempo e contatori, mai la posizione (R4) */
+export function liveWalkUpdate(w: LiveWalk) {
+  if (!isNative) return
+  void SenzaMappa.liveUpdate(w).catch(() => {})
+}
+
+export function liveWalkEnd() {
+  if (!isNative) return
+  void SenzaMappa.liveEnd().catch(() => {})
+}
+
+/** un comando Siri vecchio (app aperta senza camminata) non deve scattare alla prossima */
+const SHORTCUT_MAX_AGE_MS = 2 * 60_000
+
+/** Siri / Comandi / tasto Azione: chiama fn con l'azione chiesta, anche se ha aperto l'app da chiusa */
+export function onShortcut(fn: (a: ShortcutAction) => void): () => void {
+  if (!isNative) return () => {}
+  const take = async () => {
+    try {
+      const r = await SenzaMappa.takeShortcut()
+      if ((r.action === 'checkpoint' || r.action === 'bangla') && Date.now() - (r.at ?? 0) < SHORTCUT_MAX_AGE_MS) fn(r.action)
+    } catch {
+      /* app senza plugin: niente scorciatoie */
+    }
+  }
+  void take()
+  const handle = SenzaMappa.addListener('shortcut', () => void take()).catch(() => null)
+  return () => void handle.then((h) => h?.remove())
 }
